@@ -5,7 +5,9 @@ extends Node2D
 ##   - Sprite2D(char.png)  角色外观（region 裁剪出小人，scale 由代码统一设置）
 ##
 ## 点击检测：
-##   由 Main._unhandled_input 的世界坐标命中测试（contains_point）触发 on_clicked。
+##   顾客自身在 `_input`（最早回调，对所有节点调用，不依赖事件是否被 GUI 消费）中
+##   用 contains_point 做世界坐标命中测试并触发 on_clicked，命中后 set_input_as_handled()
+##   防止主场景把该点击误判为窗口拖拽。
 ##   contains_point 直接基于 Sprite 的真实渲染矩形（region + scale），与屏幕显示严格对齐，
 ##   不再手动估算矩形，避免"框与显示错位导致点击永远 miss"。
 ##
@@ -84,3 +86,13 @@ func _complete_order() -> void:
 	var t_fade := create_tween()
 	t_fade.tween_property(self, "modulate:a", 0.0, FADE_DURATION)
 	t_fade.tween_callback(queue_free)
+
+
+## 点击检测：用 _input（最早回调，对所有节点调用，不依赖事件是否被 GUI 消费）
+## 保证点击一定触发；命中自身显示矩形则完成订单并消费事件（避免主场景误拖）
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		if contains_point(get_global_mouse_position()):
+			print("[cust] HIT pos=", get_global_mouse_position())
+			on_clicked()
+			get_viewport().set_input_as_handled()

@@ -5,6 +5,10 @@ extends Control
 ##   - 高内聚：只做"编排"，不持有业务逻辑（货币/换装/动画等在各自节点）
 ##   - 低耦合：通过信号连接组件，不直接操作内部状态
 ##   - 组合：本节点 = 窗口管理（阶段0） + 游戏循环（阶段1）
+##
+## 输入处理说明：
+##   点击检测放在顾客自身的 `_input`（最早回调，对所有节点调用，不依赖事件是否被 GUI 消费），
+##   保证一定触发；主场景 `_input` 只负责空白处拖拽，并排除关闭按钮区域，避免误拖。
 
 # ─── 阶段 0：窗口管理 ───
 var _dragging := false
@@ -20,6 +24,7 @@ var _drag_offset := Vector2i.ZERO
 
 # 节点引用 —— 通过 @onready 注入，不硬编码路径搜索
 @onready var play_area: Node2D = $Panel/PlayArea
+@onready var close_button: Button = $Panel/CloseButton
 
 
 func _ready() -> void:
@@ -37,45 +42,36 @@ func _configure_window() -> void:
 	win.always_on_top = false
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	# 指针处理放在 _unhandled_input：
-	# - UI 按钮（如 CloseButton, mouse_filter=STOP）会自行消费点击，不会进入这里 → 不误拖
-	# - 顾客（Node2D，非 Control）与空白处的点击不被 GUI 消费 → 进入这里做命中测试 / 拖拽
-	# 用 get_global_mouse_position() 取世界坐标，避开 event.global_position 的视口/画布空间歧义
-	if not (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT):
-		return
-	if event.pressed:
-		var mp := get_global_mouse_position()
-		var target := _customer_at_point(mp)
-		print("[click] pos=%s target=%s" % [mp, target])
-		if target != null:
-			target.on_clicked()
-		else:
-			_dragging = true
-			_drag_offset = DisplayServer.window_get_position() - DisplayServer.mouse_get_position()
-	else:
-		_dragging = false
-
-
 func _input(event: InputEvent) -> void:
-	# 拖拽中的鼠标移动用 _input 处理：保证 motion 不被任何节点拦截，窗口跟随流畅
-	if _dragging and event is InputEventMouseMotion:
+	# 用 _input（最早回调，对所有节点调用，不依赖事件是否被 GUI 消费）统一处理指针
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			var mp := get_global_mouse_position()
+			print("[main] press pos=", mp, " cust=", _customer_at_point(mp))
+			# 关闭按钮区域：交给按钮自身的 pressed 处理，不拖拽
+			if _on_close_button(mp):
+				return
+			# 顾客自身会在其 _input 中命中并 set_input_as_handled()；
+			# 此处仅当"点中空白（无顾客）且事件未被消费"时才拖拽
+			if _customer_at_point(mp) == null and not get_viewport().is_input_handled():
+				_dragging = true
+				_drag_offset = DisplayServer.window_get_position() - DisplayServer.mouse_get_position()
+		else:
+			_dragging = false
+	elif event is InputEventMouseMotion and _dragging:
 		DisplayServer.window_set_position(DisplayServer.mouse_get_position() + _drag_offset)
 
 
-## 在 PlayArea 中查找包含 global_pos 的顾客（点击命中测试）
-func _customer_at_point(global_pos: Vector2) -> Node2D:
-	for c in play_area.get_children():
-		if c.has_method("contains_point") and c.contains_point(global_pos):
-			return c
-	return null
+## 点击位置是否落在关闭按钮的全局矩形内
+func _on_close_button(pos: Vector2) -> bool:
+	return close_button.get_global_rect().has_point(pos)
 
 
 func _on_close_pressed() -> void:
 	get_tree().quit()
 
 
-# ═══════════════════ 阶段 1：顾客生成与订单编排 ═══════════════════
+# ═══════════════════ 阶段 1：顾客生成与订单编排 ═════════════════
 
 func _schedule_first_spawn() -> void:
 	await get_tree().create_timer(first_spawn_delay).timeout
