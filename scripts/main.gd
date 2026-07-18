@@ -33,6 +33,7 @@ var _drag_offset := Vector2i.ZERO
 @onready var play_area: Node2D = $Panel/PlayArea
 @onready var pet_area: Node2D = $Panel/PetArea
 @onready var close_button: Button = $Panel/CloseButton
+@onready var ui_panel: Control = $Panel/UIPanel
 
 
 func _ready() -> void:
@@ -60,6 +61,9 @@ func _input(event: InputEvent) -> void:
 			# 关闭按钮区域：交给按钮自身的 pressed 处理，不拖拽
 			if _on_close_button(mp):
 				return
+			# UI 侧边面板区域：交互由面板内部处理，不拖窗口
+			if _on_ui_panel(mp):
+				return
 			# 点中宠物：宠物自身 _input 已消费（拖动/轻点红心），此处不拖窗口
 			if _pet_at_point(mp) != null:
 				return
@@ -78,6 +82,11 @@ func _input(event: InputEvent) -> void:
 ## 点击位置是否落在关闭按钮的全局矩形内
 func _on_close_button(pos: Vector2) -> bool:
 	return close_button.get_global_rect().has_point(pos)
+
+
+## 点击位置是否落在 UI 侧边面板区域内
+func _on_ui_panel(pos: Vector2) -> bool:
+	return ui_panel.get_global_rect().has_point(pos)
 
 
 ## 遍历 PlayArea 子节点，调用各自的 contains_point 进行命中判定
