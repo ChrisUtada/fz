@@ -4,7 +4,7 @@
 [ext_resource type="Texture2D" uid="uid://bx3mpks5iaauv" path="res://assets/char.png" id="2_char"]
 
 [sub_resource type="RectangleShape2D" id="Rect_hit"]
-size = Vector2(76, 154)
+size = Vector2(70, 142)
 
 [node name="Customer" type="Node2D" unique_id=1047098260]
 script = ExtResource("1_customer")
@@ -15,7 +15,8 @@ region_enabled = true
 region_rect = Rect2(521, 145.5, 76, 154)
 
 [node name="HitArea" type="Area2D" parent="." unique_id=1182154728]
-position = Vector2(0, 0)
+collision_layer = 2
 
 [node name="Collision" type="CollisionShape2D" parent="HitArea" unique_id=1666428529]
+position = Vector2(-3, 2)
 shape = SubResource("Rect_hit")

@@ -1,0 +1,22 @@
+[gd_scene format=3 uid="uid://bq8xk5m7n2qaa"]
+
+[ext_resource type="Script" uid="uid://cl4tjhc71vrf8" path="res://scripts/pet.gd" id="1_pet"]
+[ext_resource type="Texture2D" uid="uid://bkaohu2kfivfs" path="res://assets/cat.png" id="2_cat"]
+
+[sub_resource type="RectangleShape2D" id="Rect_pet_hit"]
+size = Vector2(75, 37)
+
+[node name="Pet" type="Node2D" unique_id=1047098261]
+script = ExtResource("1_pet")
+
+[node name="Sprite" type="Sprite2D" parent="." unique_id=362970537]
+texture = ExtResource("2_cat")
+region_enabled = true
+region_rect = Rect2(184, 243.5, 79, 36)
+
+[node name="ClickArea" type="Area2D" parent="." unique_id=628167355]
+collision_layer = 4
+
+[node name="Collision" type="CollisionShape2D" parent="ClickArea" unique_id=750736882]
+position = Vector2(-0.5, 0.5)
+shape = SubResource("Rect_pet_hit")

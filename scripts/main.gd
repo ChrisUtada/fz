@@ -7,9 +7,9 @@ extends Control
 ##   - 组合：本节点 = 窗口管理（阶段0） + 游戏循环（阶段1）
 ##
 ## 输入处理说明：
-##   鼠标交互的"判定与响应"现在归顾客自身（customer._input：抓取/拖动/轻点完成），
-##   主场景 _input 只负责：①点中关闭按钮交按钮处理 ②点中顾客则 return（顾客已消费，不拖窗口）
-##   ③点中空白则拖拽窗口。用 _customer_at_point 守卫判断"是否点中顾客"，避免误抢事件。
+##   鼠标交互的"判定与响应"归顾客/宠物自身（contains_point + _input 三态）。
+##   主场景 _input 只负责：①点中关闭按钮交按钮处理 ②点中顾客/宠物则 return（节点已消费，不拖窗口）
+##   ③点中空白则拖拽窗口。用 _customer_at_point / _pet_at_point（遍历子节点调 contains_point）守卫。
 
 # ─── 阶段 0：窗口管理 ───
 var _dragging := false
@@ -21,16 +21,23 @@ var _drag_offset := Vector2i.ZERO
 @export var max_spawn_interval: float = 4.0         ## 生成间隔上限
 @export var base_gold_reward: int = 100             ## 基础金币奖励
 @export var base_inspiration_reward: int = 10       ## 基础灵感奖励
-@export var reward_variance: int = 50              ## 奖励浮动范围 (±N)
+@export var reward_variance: int = 0               ## 奖励浮动范围 (±N)，0 = 严格等于设定值
+
+# ─── 阶段 1 补：宠物生成配置 ───
+@export var first_pet_delay: float = 3.0          ## 首只宠物出现延迟
+@export var min_pet_interval: float = 5.0         ## 宠物生成间隔下限
+@export var max_pet_interval: float = 10.0        ## 宠物生成间隔上限
 
 # 节点引用 —— 通过 @onready 注入，不硬编码路径搜索
 @onready var play_area: Node2D = $Panel/PlayArea
+@onready var pet_area: Node2D = $Panel/PetArea
 @onready var close_button: Button = $Panel/CloseButton
 
 
 func _ready() -> void:
 	_configure_window()
 	_schedule_first_spawn()
+	_schedule_first_pet()
 
 
 # ═══════════════════ 阶段 0：窗口管理 ═══════════════════
@@ -52,6 +59,9 @@ func _input(event: InputEvent) -> void:
 			# 关闭按钮区域：交给按钮自身的 pressed 处理，不拖拽
 			if _on_close_button(mp):
 				return
+			# 点中宠物：宠物自身 _input 已消费（拖动/轻点红心），此处不拖窗口
+			if _pet_at_point(mp) != null:
+				return
 			# 点中顾客：顾客自身 _input 已消费并自行处理（拖动/轻点完成），此处不拖窗口
 			if _customer_at_point(mp) != null:
 				return
@@ -69,11 +79,19 @@ func _on_close_button(pos: Vector2) -> bool:
 	return close_button.get_global_rect().has_point(pos)
 
 
-## 在 PlayArea 中查找包含 global_pos 的顾客（调用顾客自身的 contains_point 几何判定）
+## 遍历 PlayArea 子节点，调用各自的 contains_point 进行命中判定
 func _customer_at_point(global_pos: Vector2) -> Node2D:
 	for c in play_area.get_children():
 		if is_instance_valid(c) and c.has_method("contains_point") and c.contains_point(global_pos):
 			return c
+	return null
+
+
+## 遍历 PetArea 子节点，调用各自的 contains_point 进行命中判定
+func _pet_at_point(global_pos: Vector2) -> Node2D:
+	for p in pet_area.get_children():
+		if is_instance_valid(p) and p.has_method("contains_point") and p.contains_point(global_pos):
+			return p
 	return null
 
 
@@ -118,3 +136,28 @@ func _on_order_completed(reward: Dictionary) -> void:
 	var interval := randf_range(min_spawn_interval, max_spawn_interval)
 	await get_tree().create_timer(interval).timeout
 	_spawn_customer()
+
+
+# ═══════════════════ 阶段 1 补：宠物生成与编排 ═════════════════
+
+func _schedule_first_pet() -> void:
+	await get_tree().create_timer(first_pet_delay).timeout
+	_spawn_pet()
+
+
+func _spawn_pet() -> void:
+	var scene := preload("res://scenes/pet.tscn")
+	var pet: Node2D = scene.instantiate()
+
+	# 宠物从屏幕边缘随机位置进入（由 pet.gd 内部的 _pick_direction 决定方向）
+	pet.position = Vector2.ZERO  # 初始位置由 pet 自身调整
+
+	pet_area.add_child(pet)
+
+	# 可选：连接宠物信号（如点击统计、成就等扩展点）
+	# pet.pet_tapped.connect(_on_pet_tapped)
+
+	# 安排下一只宠物
+	var interval := randf_range(min_pet_interval, max_pet_interval)
+	await get_tree().create_timer(interval).timeout
+	_spawn_pet()

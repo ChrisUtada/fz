@@ -47,6 +47,9 @@ offset_bottom = 60.0
 [node name="PlayArea" type="Node2D" parent="Panel" unique_id=1080208787]
 position = Vector2(340, 220)
 
+[node name="PetArea" type="Node2D" parent="Panel" unique_id=1080208788]
+## 宠物容器：覆盖全窗口（position=0,0），宠物在窗口坐标下自由行走/拖拽
+
 [node name="Title" type="Label" parent="Panel" unique_id=334463009]
 layout_mode = 0
 offset_left = 24.0
@@ -64,7 +67,7 @@ offset_left = 24.0
 offset_top = 360.0
 offset_right = 656.0
 offset_bottom = 380.0
-text = "点击顾客完成订单 · 拖拽窗口移动"
+text = "点击顾客完成订单 · 拖拽宠物放置 · 点击宠物有惊喜"
 mouse_filter = 2
 
 [node name="CloseButton" type="Button" parent="Panel" unique_id=1968642857]
