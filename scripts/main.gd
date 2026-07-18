@@ -7,8 +7,9 @@ extends Control
 ##   - 组合：本节点 = 窗口管理（阶段0） + 游戏循环（阶段1）
 ##
 ## 输入处理说明：
-##   点击检测放在顾客自身的 `_input`（最早回调，对所有节点调用，不依赖事件是否被 GUI 消费），
-##   保证一定触发；主场景 `_input` 只负责空白处拖拽，并排除关闭按钮区域，避免误拖。
+##   单一输入权威：Main._input（最早回调，对所有节点调用，不依赖事件是否被 GUI 消费）
+##   统一做命中判定与派发——命中顾客则调用 customer.on_clicked() 完成订单，
+##   点中空白则拖拽窗口，点中关闭按钮则交给按钮自身处理。顾客不再持有 _input，避免双 _input 竞态。
 
 # ─── 阶段 0：窗口管理 ───
 var _dragging := false
@@ -44,18 +45,23 @@ func _configure_window() -> void:
 
 func _input(event: InputEvent) -> void:
 	# 用 _input（最早回调，对所有节点调用，不依赖事件是否被 GUI 消费）统一处理指针
+	# 单一输入权威：命中判定与订单派发都在此完成，避免双 _input 竞态
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
 			var mp := get_global_mouse_position()
-			print("[main] press pos=", mp, " cust=", _customer_at_point(mp))
 			# 关闭按钮区域：交给按钮自身的 pressed 处理，不拖拽
 			if _on_close_button(mp):
+				print("[main] press on close button")
 				return
-			# 顾客自身会在其 _input 中命中并 set_input_as_handled()；
-			# 此处仅当"点中空白（无顾客）且事件未被消费"时才拖拽
-			if _customer_at_point(mp) == null and not get_viewport().is_input_handled():
-				_dragging = true
-				_drag_offset = DisplayServer.window_get_position() - DisplayServer.mouse_get_position()
+			# 命中顾客 → 派发订单完成，不拖拽
+			var target := _customer_at_point(mp)
+			print("[main] press pos=", mp, " cust=", target)
+			if target != null:
+				target.on_clicked()
+				return
+			# 空白 → 开始拖拽窗口
+			_dragging = true
+			_drag_offset = DisplayServer.window_get_position() - DisplayServer.mouse_get_position()
 		else:
 			_dragging = false
 	elif event is InputEventMouseMotion and _dragging:
@@ -65,6 +71,14 @@ func _input(event: InputEvent) -> void:
 ## 点击位置是否落在关闭按钮的全局矩形内
 func _on_close_button(pos: Vector2) -> bool:
 	return close_button.get_global_rect().has_point(pos)
+
+
+## 在 PlayArea 中查找包含 global_pos 的顾客（调用顾客自身的 contains_point 几何判定）
+func _customer_at_point(global_pos: Vector2) -> Node2D:
+	for c in play_area.get_children():
+		if is_instance_valid(c) and c.has_method("contains_point") and c.contains_point(global_pos):
+			return c
+	return null
 
 
 func _on_close_pressed() -> void:
