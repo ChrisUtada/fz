@@ -77,10 +77,8 @@ func contains_point(global_pos: Vector2) -> bool:
 	query.collide_with_bodies = false
 	query.collide_with_areas = true
 	var results := space.intersect_point(query)
-	print("[pet] contains_point: ", global_pos, " results=", results.size())
 	for r in results:
 		var hit := r.collider as Area2D
-		print("[pet]   hit: ", hit.name if hit else "null", " == _click_area? ", hit == _click_area)
 		if hit == _click_area:
 			return true
 	return false
@@ -90,7 +88,6 @@ func contains_point(global_pos: Vector2) -> bool:
 func on_tapped() -> void:
 	if not _alive:
 		return
-	print("[pet] tapped at ", global_position)
 	pet_tapped.emit()
 	_spawn_heart()
 
@@ -140,9 +137,7 @@ func _input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 		else:
 			if _grabbed:
-				if _moved:
-					print("[pet] dropped at ", global_position)
-				else:
+				if not _moved:
 					on_tapped()
 				_grabbed = false
 				_dragging = false
@@ -196,20 +191,16 @@ func _die() -> void:
 	if not _alive:
 		return
 	_alive = false
-	print("[pet] reached edge, fading out")
 	var tween := create_tween()
 	tween.tween_property(self, "modulate:a", 0.0, 0.25)
 	tween.tween_callback(queue_free)
 
 
 func _spawn_heart() -> void:
-	print("[pet] _spawn_heart called")
 	var heart_scene := preload("res://scenes/heart.tscn")
 	var heart: Node2D = heart_scene.instantiate()
-	print("[pet] heart instantiated, children=", heart.get_child_count())
 	heart.position = Vector2(0, -30)
 	add_child(heart)
-	print("[pet] heart added, at y=", heart.position.y)
 
 
 func _play_spawn_animation() -> void:

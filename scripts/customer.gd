@@ -113,7 +113,6 @@ func contains_point(global_pos: Vector2) -> bool:
 func on_clicked() -> void:
 	if _completed:
 		return
-	print("[cust] tap -> on_clicked reward=", gold_reward, "/", inspiration_reward)
 	_complete_order()
 
 
@@ -134,9 +133,7 @@ func _input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 		else:
 			if _grabbed:
-				if _moved:
-					print("[cust] dropped at ", global_position)
-				else:
+				if not _moved:
 					on_clicked()
 				_grabbed = false
 				_dragging = false

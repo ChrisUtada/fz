@@ -204,6 +204,8 @@ func _spawn_pet() -> void:
 
 ## 实例化换装场景作为覆盖层，传入衣服资源池
 func _open_wardrobe() -> void:
+	if _has_wardrobe():
+		return
 	var scene := preload("res://scenes/wardrobe.tscn")
 	var wardrobe: Control = scene.instantiate()
 	wardrobe.clothes_pool = clothes_pool
