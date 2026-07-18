@@ -1,18 +1,22 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://cq30bhdctqy2e"]
 
-[ext_resource type="Script" path="res://scripts/customer.gd" id="1_customer"]
-[ext_resource type="CompressedTexture2D" uid="uid://bx3mpks5iaauv" path="res://assets/char.png" id="2_char"]
+[ext_resource type="Script" uid="uid://io44jdbros8a" path="res://scripts/customer.gd" id="1_customer"]
+[ext_resource type="Texture2D" uid="uid://bx3mpks5iaauv" path="res://assets/char.png" id="2_char"]
 
 [sub_resource type="RectangleShape2D" id="Rect_hit"]
 size = Vector2(280, 157)
 
-[node name="Customer" type="Node2D"]
+[node name="Customer" type="Node2D" unique_id=1047098260]
 script = ExtResource("1_customer")
 
-[node name="Sprite" type="Sprite2D" parent="."]
+[node name="Sprite" type="Sprite2D" parent="." unique_id=362970536]
+position = Vector2(156, 21)
 texture = ExtResource("2_char")
+region_rect = Rect2(521, 145.5, 76, 154)
 
-[node name="HitArea" type="Area2D" parent="."]
+[node name="HitArea" type="Area2D" parent="." unique_id=1182154728]
+position = Vector2(340, 26)
 
-[node name="Collision" type="CollisionShape2D" parent="HitArea"]
+[node name="Collision" type="CollisionShape2D" parent="HitArea" unique_id=1666428529]
+position = Vector2(105, 19)
 shape = SubResource("Rect_hit")
