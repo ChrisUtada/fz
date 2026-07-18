@@ -1,0 +1,67 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/hud.gd" id="1_hud"]
+
+[sub_resource type="Theme" id="Theme_hud"]
+
+[node name="HUD" type="Control"]
+layout_mode = 0
+anchor_right = 1.0
+offset_bottom = 52.0
+script = ExtResource("1_hud")
+
+[node name="Bg" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.15, 0.14, 0.12, 0.55)
+
+[node name="HBox" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 6.0
+offset_bottom = 46.0
+theme_override_constants/separation = 32
+alignment = 2
+
+[node name="GoldPanel" type="PanelContainer" parent="HBox"]
+layout_mode = 2
+size_flags_horizontal = 4
+
+[node name="GoldInner" type="HBoxContainer" parent="HBox/GoldPanel"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="GoldIcon" type="Label" parent="HBox/GoldPanel/GoldInner"]
+layout_mode = 2
+text = "💰"
+theme_override_font_sizes/font_size = 18
+
+[node name="GoldValue" type="Label" parent="HBox/GoldPanel/GoldInner"]
+layout_mode = 2
+text = "0"
+theme_override_font_sizes/font_size = 18
+
+[node name="Spacer1" type="Control" parent="HBox"]
+custom_minimum_size = Vector2(40.0, 0.0)
+layout_mode = 2
+
+[node name="InspirationPanel" type="PanelContainer" parent="HBox"]
+layout_mode = 2
+size_flags_horizontal = 4
+
+[node name="InspirationInner" type="HBoxContainer" parent="HBox/InspirationPanel"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="InspirationIcon" type="Label" parent="HBox/InspirationPanel/InspirationInner"]
+layout_mode = 2
+text = "✨"
+theme_override_font_sizes/font_size = 18
+
+[node name="InspirationValue" type="Label" parent="HBox/InspirationPanel/InspirationInner"]
+layout_mode = 2
+text = "0"
+theme_override_font_sizes/font_size = 18
