@@ -37,7 +37,8 @@ func _configure_window() -> void:
 	win.always_on_top = false
 
 
-func _input(event: InputEvent) -> void:
+func _gui_input(event: InputEvent) -> void:
+	# 仅当事件冒泡到 Main（即点中面板空白处，而非顾客/按钮等 STOP 节点）时才拖拽
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
 			_dragging = true
@@ -61,7 +62,7 @@ func _schedule_first_spawn() -> void:
 
 func _spawn_customer() -> void:
 	var scene := preload("res://scenes/customer.tscn")
-	var customer: Node2D = scene.instantiate()
+	var customer: TextureButton = scene.instantiate()
 
 	# 注入随机奖励金额（依赖注入）
 	var gold_r := randi_range(base_gold_reward - reward_variance, base_gold_reward + reward_variance)

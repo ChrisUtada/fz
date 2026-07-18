@@ -1,9 +1,9 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene format=3 uid="uid://ci0bra01njmqo"]
 
-[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" uid="uid://bglc5kq0bvsyl" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://scenes/hud.tscn" id="2_hud"]
 
-[node name="Main" type="Control"]
+[node name="Main" type="Control" unique_id=928901657]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -12,39 +12,47 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_main")
 
-[node name="Panel" type="ColorRect" parent="."]
+[node name="Panel" type="ColorRect" parent="." unique_id=727893971]
 layout_mode = 0
 offset_left = 40.0
 offset_top = 30.0
 offset_right = 640.0
 offset_bottom = 390.0
 color = Color(0.96, 0.94, 0.89, 0.92)
+mouse_filter = 1
 
-[node name="HUD" parent="Panel" instance=ExtResource("2_hud")]
-layout_mode = 0
+[node name="HUD" parent="Panel" unique_id=1990008568 instance=ExtResource("2_hud")]
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 12.0
+offset_top = 8.0
+offset_right = -12.0
+offset_bottom = 60.0
 
-[node name="PlayArea" type="Node2D" parent="Panel"]
-position = Vector2(300.0, 220.0)
+[node name="PlayArea" type="Node2D" parent="Panel" unique_id=1080208787]
+position = Vector2(300, 220)
 
-[node name="Title" type="Label" parent="Panel"]
+[node name="Title" type="Label" parent="Panel" unique_id=334463009]
 layout_mode = 0
 offset_left = 24.0
 offset_top = 60.0
 offset_right = 552.0
 offset_bottom = 88.0
+theme_override_font_sizes/font_size = 24
 text = "放置换装 · Stage 1"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 24
+mouse_filter = 1
 
-[node name="Hint" type="Label" parent="Panel"]
+[node name="Hint" type="Label" parent="Panel" unique_id=1022034095]
 layout_mode = 0
 offset_left = 24.0
 offset_top = 338.0
 offset_right = 552.0
 offset_bottom = 358.0
 text = "点击顾客完成订单 · 拖拽窗口移动"
+mouse_filter = 1
 
-[node name="CloseButton" type="Button" parent="Panel"]
+[node name="CloseButton" type="Button" parent="Panel" unique_id=1968642857]
 layout_mode = 0
 offset_left = 596.0
 offset_top = 10.0
