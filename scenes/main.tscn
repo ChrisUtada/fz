@@ -30,7 +30,9 @@ offset_top = 0.0
 offset_right = 680.0
 offset_bottom = 420.0
 color = Color(1, 1, 1, 0)
-mouse_filter = 1
+# IGNORE：不拦截输入，让底层 Area2D 的 input_event 拾取能触发；
+# 空白处点击会冒泡到 Main(根 Control) 的 _gui_input 处理拖拽
+mouse_filter = 2
 
 [node name="HUD" parent="Panel" unique_id=1990008568 instance=ExtResource("2_hud")]
 anchors_preset = 10

@@ -6,7 +6,7 @@ extends Node2D
 ##   - Area2D + CollisionShape2D  点击命中区（覆盖整张贴图，保证偏右的小人也能点中）
 ##
 ## 原则（工程规范）：
-##   - 低耦合：仅通过信号对外通信（order_completed / pointer_entered / pointer_exited），
+##   - 低耦合：仅通过信号对外通信（order_completed），
 ##     不直接引用 GameManager 等外部模块
 ##   - 高内聚：本节点只负责"角色表现 + 点击检测 + 自身动画"
 ##   - 可扩展：基于 Node2D，后续可直接挂 AnimationPlayer / AnimationTree 做换装、动作、
@@ -14,12 +14,8 @@ extends Node2D
 ##
 ## 信号：
 ##   order_completed(reward)  点击完成后发出，由 Main 编排层接收并委托 GameManager
-##   pointer_entered()        鼠标进入命中区（用于 Main 的拖拽守卫）
-##   pointer_exited()         鼠标离开命中区
 
 signal order_completed(reward: Dictionary)
-signal pointer_entered
-signal pointer_exited
 
 const BASE_SCALE := Vector2(0.38, 0.38)   ## 贴图缩放（char.png 736x414 偏大）
 const CLICK_BOUNCE := 1.25                ## 点击弹跳倍率（相对 Node2D scale=1）
@@ -41,11 +37,8 @@ func _ready() -> void:
 	scale = Vector2.ONE
 	modulate.a = 0.0
 
-	# 点击检测：Area2D 的 input_event（物理拾取系统）
+	# 点击检测：Area2D 的 input_event（物理拾取系统，Panel 设为 IGNORE 后正常触发）
 	_hit_area.input_event.connect(_on_hit_area_input_event)
-	# 悬停检测：供 Main 的拖拽守卫使用
-	_hit_area.mouse_entered.connect(func(): pointer_entered.emit())
-	_hit_area.mouse_exited.connect(func(): pointer_exited.emit())
 
 	_play_spawn_animation()
 
@@ -54,6 +47,21 @@ func _ready() -> void:
 func set_reward(gold: int, inspiration: int) -> void:
 	gold_reward = gold
 	inspiration_reward = inspiration
+
+
+## 命中测试：global_pos 是否落在角色显示区域内（280x157，居中于 origin）
+## 作为 Area2D 拾取失效时的可靠回退路径；与 Area2D 命中框等价
+func contains_point(global_pos: Vector2) -> bool:
+	var half := Vector2(140.0, 78.5) * scale
+	var local := to_local(global_pos)
+	return abs(local.x) <= half.x and abs(local.y) <= half.y
+
+
+## 由 Main 命中测试触发（或 Area2D input_event 触发），统一入口
+func on_clicked() -> void:
+	if _completed:
+		return
+	_complete_order()
 
 
 func _play_spawn_animation() -> void:
