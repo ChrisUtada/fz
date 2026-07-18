@@ -2,12 +2,11 @@ extends Control
 ## UIPanel · 右侧滑出 UI 面板
 ##
 ## 组成：
-##   - Bg (TextureRect)  面板背景（从 ui.png 裁剪）
-##   - Tab (TextureButton)  拉出按钮（始终可见）
+##   - Tab (TextureButton)  面板本体（展示 ui2.png，点击切换展开/收起）
 ##   - Content (Control)  内容容器（放置菜单按钮/标签等）
 ##
 ## 行为：
-##   默认隐藏在右侧（只露出 Tab），点击 Tab 滑出面板，再点收回
+##   默认隐藏在右侧（只露出右边缘），点击面板滑出，再点收回
 
 signal toggled(open: bool)
 
@@ -18,7 +17,6 @@ const SLIDE_DURATION := 0.3
 var _open := false
 
 @onready var _tab: TextureButton = $Tab
-@onready var _bg: TextureRect = $Bg
 
 
 func _ready() -> void:
