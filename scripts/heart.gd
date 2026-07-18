@@ -10,21 +10,20 @@ extends Node2D
 ##
 ## 动画：上浮 → 淡出 → queue_free
 
-const FLOAT_DIST := 30.0
-const DURATION := 0.8
+const FLOAT_UP := -30.0                           ## 上浮偏移量（相对当前位置）
+const DURATION := 1.0                              ## 总动画时长
 
 
 func _ready() -> void:
-	print("[heart] _ready called")
 	_play_animation()
 
 
 func _play_animation() -> void:
-	modulate.a = 1.0
-
 	var tween := create_tween()
 	tween.set_parallel(true)
-	tween.tween_property(self, "position:y", -FLOAT_DIST, DURATION * 0.6)
+	tween.tween_property(self, "position:y", FLOAT_UP, DURATION * 0.5)\
+		.as_relative()\
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tween.tween_property(self, "modulate:a", 0.0, DURATION * 0.5)\
 		.set_delay(DURATION * 0.3)
 	tween.tween_callback(queue_free)
