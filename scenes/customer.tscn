@@ -1,14 +1,18 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene format=3]
 
-[ext_resource type="Texture2D" path="res://assets/char.png" id="1_char"]
-[ext_resource type="Script" path="res://scripts/customer.gd" id="2_cust"]
+[ext_resource type="Script" path="res://scripts/customer.gd" id="1_customer"]
+[ext_resource type="CompressedTexture2D" uid="uid://bx3mpks5iaauv" path="res://assets/char.png" id="2_char"]
 
-[node name="Customer" type="TextureButton"]
-texture_normal = ExtResource("1_char")
-scale = Vector2(0.38, 0.38)
-position = Vector2(-140.0, -78.0)
-focus_mode = 2
-mouse_default_cursor_shape = 2
-script = ExtResource("2_cust")
+[sub_resource type="RectangleShape2D" id="Rect_hit"]
+size = Vector2(280, 157)
 
-[connection signal="button_down" from="." to="." method="_on_button_down"]
+[node name="Customer" type="Node2D"]
+script = ExtResource("1_customer")
+
+[node name="Sprite" type="Sprite2D" parent="."]
+texture = ExtResource("2_char")
+
+[node name="HitArea" type="Area2D" parent="."]
+
+[node name="Collision" type="CollisionShape2D" parent="HitArea"]
+shape = SubResource("Rect_hit")
