@@ -27,6 +27,7 @@ var _drag_offset := Vector2i.ZERO
 @export var first_pet_delay: float = 3.0          ## 首只宠物出现延迟
 @export var min_pet_interval: float = 5.0         ## 宠物生成间隔下限
 @export var max_pet_interval: float = 10.0        ## 宠物生成间隔上限
+@export var max_pets: int = 2                     ## 同时存在的宠物数量上限
 
 # 节点引用 —— 通过 @onready 注入，不硬编码路径搜索
 @onready var play_area: Node2D = $Panel/PlayArea
@@ -146,6 +147,14 @@ func _schedule_first_pet() -> void:
 
 
 func _spawn_pet() -> void:
+	# 检查是否达到数量上限（包含正在淡出的）
+	if pet_area.get_child_count() >= max_pets:
+		# 已达上限，跳过本次生成，继续监听
+		var interval := randf_range(min_pet_interval, max_pet_interval)
+		await get_tree().create_timer(interval).timeout
+		_spawn_pet()
+		return
+
 	var scene := preload("res://scenes/pet.tscn")
 	var pet: Node2D = scene.instantiate()
 
