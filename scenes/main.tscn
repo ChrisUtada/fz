@@ -11,6 +11,9 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+# IGNORE：Main 自身不参与 GUI 拾取，让顾客/空白点击落到 _unhandled_input 处理
+# （UI 按钮如 CloseButton 仍以自身 STOP 消费点击，不误拖）
+mouse_filter = 2
 script = ExtResource("1_main")
 
 [node name="Background" type="TextureRect" parent="." unique_id=1190001234]
@@ -30,8 +33,7 @@ offset_top = 0.0
 offset_right = 680.0
 offset_bottom = 420.0
 color = Color(1, 1, 1, 0)
-# IGNORE：不拦截输入，让底层 Area2D 的 input_event 拾取能触发；
-# 空白处点击会冒泡到 Main(根 Control) 的 _gui_input 处理拖拽
+# IGNORE：纯背景容器，不拦截输入；顾客/空白点击落到 Main._unhandled_input 处理
 mouse_filter = 2
 
 [node name="HUD" parent="Panel" unique_id=1990008568 instance=ExtResource("2_hud")]
@@ -54,7 +56,7 @@ offset_bottom = 88.0
 theme_override_font_sizes/font_size = 24
 text = "放置换装 · Stage 1"
 horizontal_alignment = 1
-mouse_filter = 1
+mouse_filter = 2
 
 [node name="Hint" type="Label" parent="Panel" unique_id=1022034095]
 layout_mode = 0
@@ -63,7 +65,7 @@ offset_top = 360.0
 offset_right = 656.0
 offset_bottom = 380.0
 text = "点击顾客完成订单 · 拖拽窗口移动"
-mouse_filter = 1
+mouse_filter = 2
 
 [node name="CloseButton" type="Button" parent="Panel" unique_id=1968642857]
 layout_mode = 0

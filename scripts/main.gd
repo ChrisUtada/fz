@@ -37,25 +37,31 @@ func _configure_window() -> void:
 	win.always_on_top = false
 
 
-func _gui_input(event: InputEvent) -> void:
-	# 仅当事件冒泡到 Main（即点中面板空白处，而非顾客/按钮等）时才拖拽
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.pressed:
-			# 可靠命中测试：点中顾客则触发订单，不拖窗口
-			# （不依赖 Area2D 拾取，避免 Control 覆盖导致 input_event 失效的无响应问题）
-			var target := _customer_at_point(event.global_position)
-			if target != null:
-				target.on_clicked()
-				return
+func _unhandled_input(event: InputEvent) -> void:
+	# 指针处理放在 _unhandled_input：
+	# - UI 按钮（如 CloseButton, mouse_filter=STOP）会自行消费点击，不会进入这里 → 不误拖
+	# - 顾客（Node2D，非 Control）与空白处的点击不被 GUI 消费 → 进入这里做命中测试 / 拖拽
+	# 用 get_global_mouse_position() 取世界坐标，避开 event.global_position 的视口/画布空间歧义
+	if not (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT):
+		return
+	if event.pressed:
+		var target := _customer_at_point(get_global_mouse_position())
+		if target != null:
+			target.on_clicked()
+		else:
 			_dragging = true
 			_drag_offset = DisplayServer.window_get_position() - DisplayServer.mouse_get_position()
-		else:
-			_dragging = false
-	elif event is InputEventMouseMotion and _dragging:
+	else:
+		_dragging = false
+
+
+func _input(event: InputEvent) -> void:
+	# 拖拽中的鼠标移动用 _input 处理：保证 motion 不被任何节点拦截，窗口跟随流畅
+	if _dragging and event is InputEventMouseMotion:
 		DisplayServer.window_set_position(DisplayServer.mouse_get_position() + _drag_offset)
 
 
-## 在 PlayArea 中查找包含 global_pos 的顾客（用于点击命中）
+## 在 PlayArea 中查找包含 global_pos 的顾客（点击命中测试）
 func _customer_at_point(global_pos: Vector2) -> Node2D:
 	for c in play_area.get_children():
 		if c.has_method("contains_point") and c.contains_point(global_pos):
