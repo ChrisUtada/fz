@@ -2,12 +2,12 @@ extends Node2D
 ## Customer · 顾客（组合节点 / Node2D）
 ##
 ## 组成：
-##   - Sprite2D(char.png)  角色外观（scale=0.38 由代码统一设置）
-##   - Area2D + CollisionShape2D  预留：阶段3 的"重叠/互动区"检测（本阶段不用于点击）
+##   - Sprite2D(char.png)  角色外观（region 裁剪出小人，scale 由代码统一设置）
 ##
 ## 点击检测：
-##   由 Main._unhandled_input 的世界坐标命中测试（contains_point）触发 on_clicked，
-##   不依赖 Area2D 的 input_event（在 Control 为主的窗口里拾取不稳定）。
+##   由 Main._unhandled_input 的世界坐标命中测试（contains_point）触发 on_clicked。
+##   contains_point 直接基于 Sprite 的真实渲染矩形（region + scale），与屏幕显示严格对齐，
+##   不再手动估算矩形，避免"框与显示错位导致点击永远 miss"。
 ##
 ## 原则（工程规范）：
 ##   - 低耦合：仅通过信号对外通信（order_completed），不直接引用 GameManager 等外部模块
@@ -19,11 +19,11 @@ extends Node2D
 
 signal order_completed(reward: Dictionary)
 
-const BASE_SCALE := Vector2(0.38, 0.38)   ## 贴图缩放（char.png 736x414 偏大）
+const BASE_SCALE := Vector2(1.0, 1.0)     ## 角色显示缩放（region 仅裁出小人 76x154，1.0 即实际像素）
 const CLICK_BOUNCE := 1.25                ## 点击弹跳倍率（相对 Node2D scale=1）
 const SPAWN_FADE := 0.4                   ## 入场渐入时长
 const FADE_DURATION := 0.4                ## 离场淡出时长
-const HIT_HALF := Vector2(140.0, 78.5)    ## 命中框半尺寸（= 贴图显示尺寸 280x157 的一半）
+const CLICK_PADDING := 36.0               ## 命中框外扩容差（像素），提升点击手感
 
 ## 奖励（由 Main 通过 set_reward 注入，依赖注入）
 @export var gold_reward: int = 100
@@ -49,9 +49,13 @@ func set_reward(gold: int, inspiration: int) -> void:
 
 ## 命中测试：global_pos（世界坐标）是否落在角色显示矩形内
 func contains_point(global_pos: Vector2) -> bool:
-	var half := HIT_HALF * scale
+	# 直接基于 Sprite 的真实渲染矩形（含 region 裁剪 + 自身 scale），
+	# 保证命中框与屏幕显示完全对齐，避免手动估算矩形导致的错位
+	var rect := _sprite.get_rect()
+	rect.size *= _sprite.scale
+	rect = rect.grow(CLICK_PADDING)   # 放宽点击容差，提升手感
 	var local := to_local(global_pos)
-	return abs(local.x) <= half.x and abs(local.y) <= half.y
+	return rect.has_point(local)
 
 
 ## 由 Main 命中测试触发，统一入口

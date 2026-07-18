@@ -45,7 +45,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT):
 		return
 	if event.pressed:
-		var target := _customer_at_point(get_global_mouse_position())
+		var mp := get_global_mouse_position()
+		var target := _customer_at_point(mp)
+		print("[click] pos=%s target=%s" % [mp, target])
 		if target != null:
 			target.on_clicked()
 		else:
