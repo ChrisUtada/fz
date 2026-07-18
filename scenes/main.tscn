@@ -27,18 +27,14 @@ offset_right = 680.0
 offset_bottom = 420.0
 color = Color(1, 1, 1, 0)
 
+[node name="UIPanel" parent="Panel" unique_id=1515967667 instance=ExtResource("4_ui")]
+
 [node name="HUD" parent="Panel" unique_id=1990008568 instance=ExtResource("2_hud")]
 anchors_preset = 0
 offset_left = 12.0
 offset_top = 8.0
 offset_right = -12.0
 offset_bottom = 60.0
-
-[node name="UIPanel" parent="Panel" unique_id=692230588 instance=ExtResource("4_ui")]
-offset_left = 5.0
-offset_top = 7.0
-offset_right = 205.0
-offset_bottom = 427.0
 
 [node name="PlayArea" type="Node2D" parent="Panel" unique_id=1080208787]
 position = Vector2(340, 220)
