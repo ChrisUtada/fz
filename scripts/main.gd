@@ -7,9 +7,9 @@ extends Control
 ##   - 组合：本节点 = 窗口管理（阶段0） + 游戏循环（阶段1）
 ##
 ## 输入处理说明：
-##   单一输入权威：Main._input（最早回调，对所有节点调用，不依赖事件是否被 GUI 消费）
-##   统一做命中判定与派发——命中顾客则调用 customer.on_clicked() 完成订单，
-##   点中空白则拖拽窗口，点中关闭按钮则交给按钮自身处理。顾客不再持有 _input，避免双 _input 竞态。
+##   鼠标交互的"判定与响应"现在归顾客自身（customer._input：抓取/拖动/轻点完成），
+##   主场景 _input 只负责：①点中关闭按钮交按钮处理 ②点中顾客则 return（顾客已消费，不拖窗口）
+##   ③点中空白则拖拽窗口。用 _customer_at_point 守卫判断"是否点中顾客"，避免误抢事件。
 
 # ─── 阶段 0：窗口管理 ───
 var _dragging := false
@@ -45,19 +45,15 @@ func _configure_window() -> void:
 
 func _input(event: InputEvent) -> void:
 	# 用 _input（最早回调，对所有节点调用，不依赖事件是否被 GUI 消费）统一处理指针
-	# 单一输入权威：命中判定与订单派发都在此完成，避免双 _input 竞态
+	# 空白拖拽窗口；点中顾客/关闭按钮则交给对应节点，不在此处理
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
 			var mp := get_global_mouse_position()
 			# 关闭按钮区域：交给按钮自身的 pressed 处理，不拖拽
 			if _on_close_button(mp):
-				print("[main] press on close button")
 				return
-			# 命中顾客 → 派发订单完成，不拖拽
-			var target := _customer_at_point(mp)
-			print("[main] press pos=", mp, " cust=", target)
-			if target != null:
-				target.on_clicked()
+			# 点中顾客：顾客自身 _input 已消费并自行处理（拖动/轻点完成），此处不拖窗口
+			if _customer_at_point(mp) != null:
 				return
 			# 空白 → 开始拖拽窗口
 			_dragging = true
