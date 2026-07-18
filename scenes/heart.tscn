@@ -1,6 +1,12 @@
 [gd_scene format=3 uid="uid://dht7knp2m4fqa"]
 
-[ext_resource type="Script" uid="uid://dht7knp2m4fqb" path="res://scripts/heart.gd" id="1_heart"]
+[ext_resource type="Script" uid="uid://22vpbj38a6gq" path="res://scripts/heart.gd" id="1_heart"]
+[ext_resource type="Texture2D" uid="uid://bkaohu2kfivfs" path="res://assets/cat.png" id="2_ycbwg"]
 
 [node name="Heart" type="Node2D" unique_id=2000000001]
 script = ExtResource("1_heart")
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=785487368]
+texture = ExtResource("2_ycbwg")
+region_enabled = true
+region_rect = Rect2(184, 216.5, 23, 20)

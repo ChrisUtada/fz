@@ -70,8 +70,11 @@ func contains_point(global_pos: Vector2) -> bool:
 	query.collide_with_bodies = false
 	query.collide_with_areas = true
 	var results := space.intersect_point(query)
+	print("[pet] contains_point: ", global_pos, " results=", results.size())
 	for r in results:
-		if r.collider == _click_area:
+		var hit := r.collider as Area2D
+		print("[pet]   hit: ", hit.name if hit else "null", " == _click_area? ", hit == _click_area)
+		if hit == _click_area:
 			return true
 	return false
 
@@ -165,10 +168,13 @@ func _die() -> void:
 
 
 func _spawn_heart() -> void:
+	print("[pet] _spawn_heart called")
 	var heart_scene := preload("res://scenes/heart.tscn")
 	var heart: Node2D = heart_scene.instantiate()
-	add_child(heart)
+	print("[pet] heart instantiated, children=", heart.get_child_count())
 	heart.position = Vector2(0, -30)
+	add_child(heart)
+	print("[pet] heart added, at y=", heart.position.y)
 
 
 func _play_spawn_animation() -> void:
