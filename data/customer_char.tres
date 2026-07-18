@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="CustomerData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/customer_data.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/char.png" id="2_char"]
+
+[resource]
+script = ExtResource("1_script")
+id = "char_customer"
+display_name = "普通小人"
+texture = ExtResource("2_char")
+region_rect = Rect2(521, 145.5, 76, 154)
+base_scale = Vector2(1, 1)
+gold_reward_min = 100
+gold_reward_max = 100
+inspiration_reward_min = 10
+inspiration_reward_max = 10
+spawn_weight = 1.0

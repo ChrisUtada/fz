@@ -9,6 +9,8 @@ anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 480.0
+grow_horizontal = 2
+grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("1_ui_panel")
 
@@ -17,9 +19,10 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 17.0
-offset_right = -62.0
-offset_bottom = -157.0
+offset_left = -6.0
+offset_top = 65.0
+offset_right = -85.0
+offset_bottom = -92.0
 grow_horizontal = 2
 grow_vertical = 2
 texture_normal = ExtResource("2_ui")
@@ -35,3 +38,11 @@ offset_top = 8.0
 offset_right = -8.0
 offset_bottom = -8.0
 mouse_filter = 2
+
+[node name="WardrobeButton" type="Button" parent="Content" unique_id=618736421]
+layout_mode = 0
+offset_left = 33.0
+offset_top = 96.0
+offset_right = 73.0
+offset_bottom = 127.0
+text = "换装"

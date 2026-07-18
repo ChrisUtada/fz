@@ -1,0 +1,124 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/clothes/align_tool.gd" id="1_align"]
+
+[sub_resource type="Theme" id="Theme_default"]
+
+[node name="AlignTool" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_align")
+
+[node name="CharacterArea" type="Control" parent="."]
+layout_mode = 0
+offset_right = 360.0
+offset_bottom = 420.0
+
+[node name="BaseSprite" type="TextureRect" parent="CharacterArea"]
+layout_mode = 0
+offset_left = 83.0
+offset_top = 56.0
+offset_right = 277.0
+offset_bottom = 363.0
+expand_mode = 1
+stretch_mode = 0
+
+[node name="AlignLayers" type="Node2D" parent="CharacterArea"]
+position = Vector2(83, 56)
+
+[node name="SidePanel" type="Panel" parent="."]
+layout_mode = 0
+offset_left = 360.0
+offset_right = 680.0
+offset_bottom = 420.0
+
+[node name="TitleLabel" type="Label" parent="SidePanel"]
+layout_mode = 0
+offset_left = 12.0
+offset_top = 8.0
+offset_right = 308.0
+offset_bottom = 30.0
+text = "衣物对齐工具"
+
+[node name="HintLabel" type="Label" parent="SidePanel"]
+layout_mode = 0
+offset_left = 12.0
+offset_top = 32.0
+offset_right = 308.0
+offset_bottom = 50.0
+text = "选衣服 · 拖到正确位置 · 保存"
+
+[node name="ItemList" type="ItemList" parent="SidePanel"]
+layout_mode = 0
+offset_left = 12.0
+offset_top = 56.0
+offset_right = 308.0
+offset_bottom = 180.0
+
+[node name="OffsetLabel" type="RichTextLabel" parent="SidePanel"]
+layout_mode = 0
+offset_left = 12.0
+offset_top = 188.0
+offset_right = 308.0
+offset_bottom = 252.0
+bbcode_enabled = true
+text = "未选中"
+
+[node name="ShowAllCheck" type="CheckBox" parent="SidePanel"]
+layout_mode = 0
+offset_left = 12.0
+offset_top = 260.0
+offset_right = 180.0
+offset_bottom = 284.0
+text = "显示全部"
+
+[node name="SaveButton" type="Button" parent="SidePanel"]
+layout_mode = 0
+offset_left = 12.0
+offset_top = 292.0
+offset_right = 150.0
+offset_bottom = 322.0
+text = "保存当前"
+
+[node name="SaveAllButton" type="Button" parent="SidePanel"]
+layout_mode = 0
+offset_left = 160.0
+offset_top = 292.0
+offset_right = 308.0
+offset_bottom = 322.0
+text = "全部保存"
+
+[node name="ResetButton" type="Button" parent="SidePanel"]
+layout_mode = 0
+offset_left = 12.0
+offset_top = 328.0
+offset_right = 150.0
+offset_bottom = 358.0
+text = "重置当前"
+
+[node name="HintKeys" type="Label" parent="SidePanel"]
+layout_mode = 0
+offset_left = 12.0
+offset_top = 364.0
+offset_right = 308.0
+offset_bottom = 392.0
+text = "方向键微调 1px\nShift+方向键 10px"
+
+[node name="CloseButton" type="Button" parent="SidePanel"]
+layout_mode = 0
+offset_left = 160.0
+offset_top = 328.0
+offset_right = 308.0
+offset_bottom = 358.0
+text = "关闭"
+
+[connection signal="item_selected" from="SidePanel/ItemList" to="." method="_on_item_selected"]
+[connection signal="toggled" from="SidePanel/ShowAllCheck" to="." method="_on_show_all_toggled"]
+[connection signal="pressed" from="SidePanel/SaveButton" to="." method="_on_save_current"]
+[connection signal="pressed" from="SidePanel/SaveAllButton" to="." method="_on_save_all"]
+[connection signal="pressed" from="SidePanel/ResetButton" to="." method="_on_reset_current"]
+[connection signal="pressed" from="SidePanel/CloseButton" to="." method="_on_close"]

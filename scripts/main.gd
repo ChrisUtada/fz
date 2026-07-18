@@ -19,15 +19,21 @@ var _drag_offset := Vector2i.ZERO
 @export var first_spawn_delay: float = 1.5          ## 首个顾客出现延迟
 @export var min_spawn_interval: float = 2.0         ## 生成间隔下限
 @export var max_spawn_interval: float = 4.0         ## 生成间隔上限
-@export var base_gold_reward: int = 100             ## 基础金币奖励
-@export var base_inspiration_reward: int = 10       ## 基础灵感奖励
-@export var reward_variance: int = 0               ## 奖励浮动范围 (±N)，0 = 严格等于设定值
+
+# ─── 阶段 2：数据驱动（Resource） ───
+@export var customer_pool: Array[CustomerData] = []   ## 顾客数据资源池（.tres），拖入即用
 
 # ─── 阶段 1 补：宠物生成配置 ───
 @export var first_pet_delay: float = 3.0          ## 首只宠物出现延迟
 @export var min_pet_interval: float = 5.0         ## 宠物生成间隔下限
 @export var max_pet_interval: float = 10.0        ## 宠物生成间隔上限
 @export var max_pets: int = 1                     ## 同时存在的宠物数量上限
+
+# ─── 阶段 2：宠物数据（Resource） ───
+@export var pet_pool: Array[PetData] = []           ## 宠物数据资源池（.tres），拖入即用
+
+# ─── 阶段 2：衣服数据（Resource，换装场景消费） ───
+@export var clothes_pool: Array[ClothesData] = []   ## 衣服数据资源池（.tres），拖入即用
 
 # 节点引用 —— 通过 @onready 注入，不硬编码路径搜索
 @onready var play_area: Node2D = $Panel/PlayArea
@@ -40,6 +46,7 @@ func _ready() -> void:
 	_configure_window()
 	_schedule_first_spawn()
 	_schedule_first_pet()
+	ui_panel.wardrobe_requested.connect(_open_wardrobe)
 
 
 # ═══════════════════ 阶段 0：窗口管理 ═══════════════════
@@ -70,6 +77,9 @@ func _input(event: InputEvent) -> void:
 			# 点中顾客：顾客自身 _input 已消费并自行处理（拖动/轻点完成），此处不拖窗口
 			if _customer_at_point(mp) != null:
 				return
+			# 换装场景已打开时，不响应空白拖拽（换装场景覆盖全窗口处理自身交互）
+			if _has_wardrobe():
+				return
 			# 空白 → 开始拖拽窗口
 			_dragging = true
 			_drag_offset = DisplayServer.window_get_position() - DisplayServer.mouse_get_position()
@@ -87,6 +97,11 @@ func _on_close_button(pos: Vector2) -> bool:
 ## 点击位置是否落在 UI 侧边面板区域内
 func _on_ui_panel(pos: Vector2) -> bool:
 	return ui_panel.get_global_rect().has_point(pos)
+
+
+## 换装场景是否已打开（作为 Main 子节点覆盖全窗口）
+func _has_wardrobe() -> bool:
+	return has_node("Wardrobe")
 
 
 ## 遍历 PlayArea 子节点，调用各自的 contains_point 进行命中判定
@@ -120,13 +135,11 @@ func _spawn_customer() -> void:
 	var scene := preload("res://scenes/customer.tscn")
 	var customer: Node2D = scene.instantiate()
 
-	# 注入随机奖励金额（依赖注入）
-	var gold_r := randi_range(base_gold_reward - reward_variance, base_gold_reward + reward_variance)
-	var insp_r := randi_range(
-		base_inspiration_reward - reward_variance,
-		base_inspiration_reward + reward_variance
-	)
-	customer.set_reward(max(gold_r, 1), max(insp_r, 1))
+	# 数据驱动：从顾客资源池随机抽一个 CustomerData，交给场景消费控制外观与奖励
+	if not customer_pool.is_empty():
+		var data: CustomerData = customer_pool.pick_random()
+		if customer.has_method("apply_data"):
+			customer.apply_data(data)
 
 	# 随机位置偏移，避免每次完全重叠
 	customer.position = Vector2(randf_range(-40.0, 40.0), randf_range(-20.0, 20.0))
@@ -167,6 +180,12 @@ func _spawn_pet() -> void:
 	var scene := preload("res://scenes/pet.tscn")
 	var pet: Node2D = scene.instantiate()
 
+	# 数据驱动：从宠物资源池随机抽一个 PetData，交给场景消费控制外观与行走参数
+	if not pet_pool.is_empty():
+		var data: PetData = pet_pool.pick_random()
+		if pet.has_method("apply_data"):
+			pet.apply_data(data)
+
 	# 宠物从屏幕边缘随机位置进入（由 pet.gd 内部的 _pick_direction 决定方向）
 	pet.position = Vector2.ZERO  # 初始位置由 pet 自身调整
 
@@ -179,3 +198,13 @@ func _spawn_pet() -> void:
 	var interval := randf_range(min_pet_interval, max_pet_interval)
 	await get_tree().create_timer(interval).timeout
 	_spawn_pet()
+
+
+# ═══════════════════ 阶段 2：换装场景入口 ═══════════════════
+
+## 实例化换装场景作为覆盖层，传入衣服资源池
+func _open_wardrobe() -> void:
+	var scene := preload("res://scenes/wardrobe.tscn")
+	var wardrobe: Control = scene.instantiate()
+	wardrobe.clothes_pool = clothes_pool
+	add_child(wardrobe)

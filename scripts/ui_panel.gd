@@ -9,6 +9,7 @@ extends Control
 ##   默认隐藏在右侧（只露出右边缘），点击面板滑出，再点收回
 
 signal toggled(open: bool)
+signal wardrobe_requested()
 
 const PANEL_WIDTH := 200
 const TAB_VISIBLE := 24
@@ -17,10 +18,12 @@ const SLIDE_DURATION := 0.3
 var _open := false
 
 @onready var _tab: TextureButton = $Tab
+@onready var _wardrobe_btn: Button = $Content/WardrobeButton
 
 
 func _ready() -> void:
 	_tab.pressed.connect(_on_tab_pressed)
+	_wardrobe_btn.pressed.connect(func(): wardrobe_requested.emit())
 	position.x = _parent_width() - TAB_VISIBLE
 
 

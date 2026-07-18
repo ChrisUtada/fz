@@ -1,9 +1,15 @@
 [gd_scene format=3 uid="uid://ci0bra01njmqo"]
 
 [ext_resource type="Script" uid="uid://bglc5kq0bvsyl" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" uid="uid://b52c1djpcmjge" path="res://scripts/resources/clothes_data.gd" id="2_choun"]
 [ext_resource type="PackedScene" path="res://scenes/hud.tscn" id="2_hud"]
 [ext_resource type="Texture2D" uid="uid://28gafa8ir30w" path="res://assets/BG.png" id="3_bg"]
+[ext_resource type="Resource" path="res://data/clothes_hat.tres" id="3_ya4ey"]
+[ext_resource type="Resource" path="res://data/clothes_shirt.tres" id="4_eb6dy"]
 [ext_resource type="PackedScene" uid="uid://d2vhg1a6fbqwp" path="res://scenes/ui_panel.tscn" id="4_ui"]
+[ext_resource type="Resource" path="res://data/clothes_skirt.tres" id="5_trceg"]
+[ext_resource type="Resource" path="res://data/clothes_gt.tres" id="6_a8y0u"]
+[ext_resource type="Resource" path="res://data/clothes_shoe.tres" id="7_jkv2x"]
 
 [node name="Main" type="Control" unique_id=928901657]
 layout_mode = 3
@@ -13,6 +19,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_main")
+clothes_pool = Array[ExtResource("2_choun")]([ExtResource("3_ya4ey"), ExtResource("4_eb6dy"), ExtResource("5_trceg"), ExtResource("6_a8y0u"), ExtResource("7_jkv2x")])
 
 [node name="Background" type="TextureRect" parent="." unique_id=1190001234]
 layout_mode = 0
@@ -28,6 +35,7 @@ offset_bottom = 420.0
 color = Color(1, 1, 1, 0)
 
 [node name="UIPanel" parent="Panel" unique_id=1515967667 instance=ExtResource("4_ui")]
+layout_mode = 1
 
 [node name="HUD" parent="Panel" unique_id=1990008568 instance=ExtResource("2_hud")]
 anchors_preset = 0

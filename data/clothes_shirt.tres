@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ClothesData" format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/clothes_data.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/clothes/shirt_a.png" id="2_worn"]
+[ext_resource type="Texture2D" path="res://assets/clothes/shirt_b.png" id="3_icon"]
+
+[resource]
+script = ExtResource("1_script")
+id = "shirt"
+display_name = "上衣"
+texture = ExtResource("2_worn")
+icon_texture = ExtResource("3_icon")
+slot = 2

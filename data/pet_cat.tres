@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="PetData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/pet_data.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/cat.png" id="2_cat"]
+
+[resource]
+script = ExtResource("1_script")
+id = "cat_pet"
+display_name = "小黄猫"
+texture = ExtResource("2_cat")
+region_rect = Rect2(184, 243.5, 79, 36)
+base_scale = Vector2(1, 1)
+walk_speed = 60.0
+bob_amplitude = 4.0
+bob_frequency = 3.0
+edge_margin = 50.0
+spawn_weight = 1.0

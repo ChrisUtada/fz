@@ -1,0 +1,12 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/clothes/item_slot.gd" id="1_slot"]
+
+[node name="ItemSlot" type="TextureButton"]
+custom_minimum_size = Vector2(64, 64)
+layout_mode = 0
+offset_right = 64.0
+offset_bottom = 64.0
+expand_icon = true
+stretch_mode = 4
+script = ExtResource("1_slot")

@@ -24,9 +24,13 @@ const SPAWN_FADE := 0.4                   ## 入场渐入时长
 const FADE_DURATION := 0.4                ## 离场淡出时长
 const DRAG_THRESHOLD := 4.0               ## 拖动判定阈值（像素）
 
-## 奖励（由 Main 通过 set_reward 注入）
+## 奖励（默认 fallback；阶段 2 起由 CustomerData.apply_data 随机注入）
 @export var gold_reward: int = 100
 @export var inspiration_reward: int = 10
+
+## 数据模型引用（Resource 驱动）。场景通过 apply_data 消费，控制外观与奖励。
+var _data: CustomerData
+var _data_pending := false
 
 var _completed := false
 
@@ -46,12 +50,48 @@ func _ready() -> void:
 	scale = Vector2.ONE
 	modulate.a = 0.0
 	_play_spawn_animation()
+	# 若 apply_data 在 _ready 之前被调用（节点尚未进入场景树），延迟到这里落地外观
+	if _data_pending:
+		_apply_visuals()
 
 
-## 由 Main 注入本次订单奖励
+## 由外部直接注入本次订单奖励（兼容/覆盖用）
 func set_reward(gold: int, inspiration: int) -> void:
 	gold_reward = gold
 	inspiration_reward = inspiration
+
+
+## 数据驱动入口：消费 CustomerData 资源，由场景控制外观与奖励。
+## 可在 add_child 之前或之后调用；节点未就绪时延迟到 _ready 落地。
+func apply_data(data: CustomerData) -> void:
+	if data == null:
+		return
+	_data = data
+	if is_inside_tree() and is_instance_valid(_sprite):
+		_apply_visuals()
+	else:
+		_data_pending = true
+
+
+## 把 CustomerData 变现为外观 + 抽取奖励（场景控制外观的核心）
+func _apply_visuals() -> void:
+	if _data == null:
+		return
+	if _data.texture != null:
+		_sprite.texture = _data.texture
+	_sprite.region_enabled = true
+	_sprite.region_rect = _data.region_rect
+	_sprite.scale = _data.base_scale
+	_roll_reward()
+
+
+## 从 CustomerData 的奖励区间内随机抽取值（OCP：新增奖励规则只改这里）
+func _roll_reward() -> void:
+	if _data == null:
+		return
+	var g := randi_range(_data.gold_reward_min, maxi(_data.gold_reward_max, _data.gold_reward_min))
+	var i := randi_range(_data.inspiration_reward_min, maxi(_data.inspiration_reward_max, _data.inspiration_reward_min))
+	set_reward(g, i)
 
 
 ## 命中测试：global_pos 是否落在 HitArea 碰撞形状内

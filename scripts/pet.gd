@@ -27,6 +27,10 @@ var _direction := Vector2.RIGHT
 var _walk_time := 0.0
 var _alive := true
 
+## 数据模型引用（Resource 驱动）。场景通过 apply_data 消费，控制外观与行走参数。
+var _data: PetData
+var _data_pending := false
+
 ## 拖拽/抓取状态
 var _grabbed := false
 var _dragging := false
@@ -44,6 +48,9 @@ func _ready() -> void:
 	modulate.a = 0.0
 	_play_spawn_animation()
 	_pick_direction()
+	# 若 apply_data 在 _ready 之前被调用（节点尚未进入场景树），延迟到这里落地外观与参数
+	if _data_pending:
+		_apply_visuals()
 
 
 func _process(delta: float) -> void:
@@ -86,6 +93,34 @@ func on_tapped() -> void:
 	print("[pet] tapped at ", global_position)
 	pet_tapped.emit()
 	_spawn_heart()
+
+
+## 数据驱动入口：消费 PetData 资源，由场景控制外观与行走参数。
+## 可在 add_child 之前或之后调用；节点未就绪时延迟到 _ready 落地。
+func apply_data(data: PetData) -> void:
+	if data == null:
+		return
+	_data = data
+	if is_inside_tree() and is_instance_valid(_sprite):
+		_apply_visuals()
+	else:
+		_data_pending = true
+
+
+## 把 PetData 变现为外观 + 行走参数（场景控制外观/行为的核心）
+func _apply_visuals() -> void:
+	if _data == null:
+		return
+	if _data.texture != null:
+		_sprite.texture = _data.texture
+	_sprite.region_enabled = true
+	_sprite.region_rect = _data.region_rect
+	_sprite.scale = _data.base_scale
+	# 行走参数从数据覆盖 @export 默认值（OCP：改数据不改代码）
+	walk_speed = _data.walk_speed
+	bob_amplitude = _data.bob_amplitude
+	bob_frequency = _data.bob_frequency
+	edge_margin = _data.edge_margin
 
 
 ## 鼠标交互（抓取/拖动/轻点）
