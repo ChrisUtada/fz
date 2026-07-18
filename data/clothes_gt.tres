@@ -1,8 +1,8 @@
-[gd_resource type="Resource" script_class="ClothesData" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="ClothesData" format=3 uid="uid://0vvsut7805js"]
 
-[ext_resource type="Script" path="res://scripts/resources/clothes_data.gd" id="1_script"]
-[ext_resource type="Texture2D" uid="uid://..." path="res://assets/clothes/gt_a.png" id="2_worn"]
-[ext_resource type="Texture2D" uid="uid://..." path="res://assets/clothes/gt_b.png" id="3_icon"]
+[ext_resource type="Script" uid="uid://b52c1djpcmjge" path="res://scripts/resources/clothes_data.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://c4g4h8mnfjgv0" path="res://assets/clothes/gt_a.png" id="2_worn"]
+[ext_resource type="Texture2D" uid="uid://c863nv7cjy0pj" path="res://assets/clothes/gt_b.png" id="3_icon"]
 
 [resource]
 script = ExtResource("1_script")

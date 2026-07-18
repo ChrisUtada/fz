@@ -1,8 +1,8 @@
-[gd_resource type="Resource" script_class="ClothesData" format=3]
+[gd_resource type="Resource" script_class="ClothesData" format=3 uid="uid://dn7etubpifsw"]
 
-[ext_resource type="Script" path="res://scripts/resources/clothes_data.gd" id="1_script"]
-[ext_resource type="Texture2D" path="res://assets/clothes/skirt_a.png" id="2_worn"]
-[ext_resource type="Texture2D" path="res://assets/clothes/skirt_b.png" id="3_icon"]
+[ext_resource type="Script" uid="uid://b52c1djpcmjge" path="res://scripts/resources/clothes_data.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://curobiue2joeg" path="res://assets/clothes/skirt_a.png" id="2_worn"]
+[ext_resource type="Texture2D" uid="uid://d4nqcgwptsdwa" path="res://assets/clothes/skirt_b.png" id="3_icon"]
 
 [resource]
 script = ExtResource("1_script")
@@ -10,6 +10,5 @@ id = "skirt"
 display_name = "裙子"
 texture = ExtResource("2_worn")
 icon_texture = ExtResource("3_icon")
-slot = 2
 price = 60
 inspiration_value = 6

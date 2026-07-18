@@ -1,12 +1,12 @@
-[gd_scene format=3 load_steps=5]
+[gd_scene format=3 uid="uid://be17dur1ihcnk"]
 
-[ext_resource type="Script" path="res://scripts/wardrobe.gd" id="1_wardrobe"]
-[ext_resource type="Script" path="res://scripts/clothes/equip_target.gd" id="2_target"]
-[ext_resource type="Texture2D" path="res://assets/clothes/zz.png" id="3_zz"]
+[ext_resource type="Script" uid="uid://bvgp8cdp447sy" path="res://scripts/wardrobe.gd" id="1_wardrobe"]
+[ext_resource type="Script" uid="uid://b3jfj8o607hf3" path="res://scripts/clothes/equip_target.gd" id="2_target"]
+[ext_resource type="Texture2D" uid="uid://yipt0j4c5j8j" path="res://assets/clothes/zz.png" id="3_zz"]
 
 [sub_resource type="Theme" id="Theme_backpack"]
 
-[node name="Wardrobe" type="Control"]
+[node name="Wardrobe" type="Control" unique_id=1623884104]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -15,47 +15,41 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_wardrobe")
 
-[node name="CharacterArea" type="Control" parent="."]
-layout_mode = 0
+[node name="CharacterArea" type="Control" parent="." unique_id=1330530816]
+anchors_preset = 0
 offset_right = 360.0
 offset_bottom = 420.0
-mouse_filter = 0
 script = ExtResource("2_target")
 
-[node name="CharacterRoot" type="Node2D" parent="CharacterArea"]
+[node name="CharacterRoot" type="Node2D" parent="CharacterArea" unique_id=1242010312]
 position = Vector2(180, 210)
 scale = Vector2(0.5, 0.5)
 
-[node name="BaseSprite" type="Sprite2D" parent="CharacterArea/CharacterRoot"]
-centered = true
+[node name="BaseSprite" type="Sprite2D" parent="CharacterArea/CharacterRoot" unique_id=1791680162]
 texture = ExtResource("3_zz")
 
-[node name="EquipLayers" type="Node2D" parent="CharacterArea/CharacterRoot"]
+[node name="EquipLayers" type="Node2D" parent="CharacterArea/CharacterRoot" unique_id=1932287427]
 
-[node name="HeadLayer" type="Sprite2D" parent="CharacterArea/CharacterRoot/EquipLayers"]
-centered = true
+[node name="HeadLayer" type="Sprite2D" parent="CharacterArea/CharacterRoot/EquipLayers" unique_id=1070959310]
 visible = false
 
-[node name="BodyLayer" type="Sprite2D" parent="CharacterArea/CharacterRoot/EquipLayers"]
-centered = true
+[node name="BodyLayer" type="Sprite2D" parent="CharacterArea/CharacterRoot/EquipLayers" unique_id=210295606]
 visible = false
 
-[node name="FeetLayer" type="Sprite2D" parent="CharacterArea/CharacterRoot/EquipLayers"]
-centered = true
+[node name="FeetLayer" type="Sprite2D" parent="CharacterArea/CharacterRoot/EquipLayers" unique_id=1528401129]
 visible = false
 
-[node name="AccessoryLayer" type="Sprite2D" parent="CharacterArea/CharacterRoot/EquipLayers"]
-centered = true
+[node name="AccessoryLayer" type="Sprite2D" parent="CharacterArea/CharacterRoot/EquipLayers" unique_id=264425598]
 visible = false
 
-[node name="BackpackArea" type="Panel" parent="."]
+[node name="BackpackArea" type="Panel" parent="." unique_id=262255332]
 layout_mode = 0
 offset_left = 360.0
 offset_right = 680.0
 offset_bottom = 420.0
 theme = SubResource("Theme_backpack")
 
-[node name="TitleLabel" type="Label" parent="BackpackArea"]
+[node name="TitleLabel" type="Label" parent="BackpackArea" unique_id=953875044]
 layout_mode = 0
 offset_left = 12.0
 offset_top = 8.0
@@ -63,7 +57,7 @@ offset_right = 100.0
 offset_bottom = 32.0
 text = "背包"
 
-[node name="GridContainer" type="GridContainer" parent="BackpackArea"]
+[node name="GridContainer" type="GridContainer" parent="BackpackArea" unique_id=1402500533]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -72,9 +66,11 @@ offset_left = 8.0
 offset_top = 40.0
 offset_right = -8.0
 offset_bottom = -8.0
+grow_horizontal = 2
+grow_vertical = 2
 columns = 3
 
-[node name="CloseButton" type="Button" parent="."]
+[node name="CloseButton" type="Button" parent="." unique_id=402937172]
 layout_mode = 0
 offset_left = 640.0
 offset_top = 4.0

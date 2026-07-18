@@ -169,7 +169,7 @@ func _save_outfit() -> void:
 	for slot in _equipped.keys():
 		var data: ClothesData = _equipped[slot]
 		if data != null and not data.resource_path.is_empty():
-			cfg.set_value("equipped", slot, data.resource_path)
+			cfg.set_value("equipped", str(slot), data.resource_path)
 	cfg.save(SAVE_PATH)
 
 
