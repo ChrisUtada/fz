@@ -6,6 +6,8 @@ extends Control
 ##   - 未拥有：显示「?」占位 + 名称「？？？」
 ## 网格布局。
 
+signal placement_requested(data: ProductData)   ## 已拥有物品点击「摆放」时发出，由 Main 转发给 PlacementManager
+
 @export var product_pool: Array[ProductData] = []
 
 @onready var _grid: GridContainer = $Card/Content/Grid
@@ -40,6 +42,12 @@ func _populate() -> void:
 		name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		cell.add_child(icon)
 		cell.add_child(name_l)
+		if owned:
+			var place_btn := Button.new()
+			place_btn.text = "摆放"
+			place_btn.add_theme_font_size_override("font_size", 14)
+			place_btn.pressed.connect(func(): placement_requested.emit(p))
+			cell.add_child(place_btn)
 		_grid.add_child(cell)
 
 

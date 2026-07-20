@@ -48,6 +48,7 @@ var _drag_offset := Vector2i.ZERO
 @onready var pet_area: Node2D = $Panel/PetArea
 @onready var close_button: Button = $Panel/CloseButton
 @onready var ui_panel: Control = $Panel/UIPanel
+@onready var placement_manager: PlacementManager = $PlacementManager
 
 # 电话摆件引用（运行期实例化，见 _instance_phone）
 var _phone: Control = null
@@ -62,6 +63,7 @@ func _ready() -> void:
 	ui_panel.warehouse_requested.connect(_open_warehouse)
 	_ensure_product_pool()
 	_instance_phone()
+	placement_manager.init(product_pool, $Panel/PlacedItems)
 
 
 # ═══════════════════ 阶段 0：窗口管理 ═══════════════════
@@ -91,6 +93,9 @@ func _input(event: InputEvent) -> void:
 				return
 			# 点中顾客：顾客自身 _input 已消费并自行处理（拖动/轻点完成），此处不拖窗口
 			if _customer_at_point(mp) != null:
+				return
+			# 点中已摆放物品：摆放物自身 _input 已消费（拖动），此处不拖窗口
+			if _placed_at_point(mp) != null:
 				return
 			# 点中电话摆件：交给电话自身处理点击，不拖窗口
 			if _phone_at_point(mp):
@@ -342,4 +347,22 @@ func _open_warehouse() -> void:
 	var scene := preload("res://scenes/warehouse_panel.tscn")
 	var panel: Control = scene.instantiate()
 	panel.product_pool = product_pool
+	panel.placement_requested.connect(_on_placement_requested)
 	add_child(panel)
+
+
+## 遍历 PlacedItems 子节点，调用各自的 contains_point 进行命中判定
+func _placed_at_point(global_pos: Vector2) -> Node2D:
+	var container: Node2D = $Panel/PlacedItems
+	if container == null:
+		return null
+	for c in container.get_children():
+		if is_instance_valid(c) and c.has_method("contains_point") and c.contains_point(global_pos):
+			return c
+	return null
+
+
+## 仓库「摆放」按钮回调：把该产品实例化为世界中的可摆放物体
+func _on_placement_requested(data: ProductData) -> void:
+	if placement_manager != null:
+		placement_manager.spawn_from_product(data)

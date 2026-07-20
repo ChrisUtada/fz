@@ -22,10 +22,12 @@ func _ready() -> void:
 	_arrived_label.visible = false
 
 
-## 用 _unhandled_input + contains_point 而非 gui_input：
-## 电话根 mouse_filter=IGNORE（穿透），子节点 Bg/进度条默认 STOP 会截获 gui_input，
-## 导致根节点收不到点击。改用 _unhandled_input 绕开 mouse_filter 链，自判命中。
-func _unhandled_input(ev: InputEvent) -> void:
+## 用 _input + contains_point 自判命中（与顾客/宠物一致）：
+## 不能用 _unhandled_input——父级 Panel(ColorRect) 全屏 mouse_filter=STOP，
+## 会在 GUI 阶段抢先消费点击，事件根本到不了 _unhandled_input。
+## _input 在 GUI 阶段之前触发，不受 mouse_filter 影响；命中后 set_input_as_handled
+## 阻止事件继续传播（Main._input 因此不会把这次点击误当成窗口拖拽）。
+func _input(ev: InputEvent) -> void:
 	if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT and ev.pressed:
 		if contains_point(get_global_mouse_position()):
 			phone_pressed.emit()

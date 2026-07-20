@@ -7,6 +7,7 @@
 [ext_resource type="Resource" path="res://data/clothes_hat.tres" id="3_ya4ey"]
 [ext_resource type="Resource" path="res://data/clothes_shirt.tres" id="4_eb6dy"]
 [ext_resource type="PackedScene" uid="uid://d2vhg1a6fbqwp" path="res://scenes/ui_panel.tscn" id="4_ui"]
+[ext_resource type="Script" path="res://scripts/placement_manager.gd" id="8_pm"]
 [ext_resource type="Resource" path="res://data/clothes_skirt.tres" id="5_trceg"]
 [ext_resource type="Resource" path="res://data/clothes_gt.tres" id="6_a8y0u"]
 [ext_resource type="Resource" path="res://data/clothes_shoe.tres" id="7_jkv2x"]
@@ -44,6 +45,9 @@ offset_top = 8.0
 offset_right = -12.0
 offset_bottom = 60.0
 
+[node name="PlacedItems" type="Node2D" parent="Panel"]
+position = Vector2(340, 220)
+
 [node name="PlayArea" type="Node2D" parent="Panel" unique_id=1080208787]
 position = Vector2(340, 220)
 
@@ -63,5 +67,8 @@ offset_top = 10.0
 offset_right = 662.0
 offset_bottom = 36.0
 text = "×"
+
+[node name="PlacementManager" type="Node" parent="."]
+script = ExtResource("8_pm")
 
 [connection signal="pressed" from="Panel/CloseButton" to="." method="_on_close_pressed"]
