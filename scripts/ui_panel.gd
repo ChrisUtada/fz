@@ -10,6 +10,7 @@ extends Control
 
 signal toggled(open: bool)
 signal wardrobe_requested()
+signal inspiration_requested()
 
 const PANEL_WIDTH := 200
 const TAB_VISIBLE := 24
@@ -19,11 +20,13 @@ var _open := false
 
 @onready var _tab: TextureButton = $Tab
 @onready var _wardrobe_btn: Button = $Content/WardrobeButton
+@onready var _inspiration_btn: Button = $Content/InspirationButton
 
 
 func _ready() -> void:
 	_tab.pressed.connect(_on_tab_pressed)
 	_wardrobe_btn.pressed.connect(func(): wardrobe_requested.emit())
+	_inspiration_btn.pressed.connect(func(): inspiration_requested.emit())
 	position.x = _parent_width() - TAB_VISIBLE
 
 

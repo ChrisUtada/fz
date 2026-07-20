@@ -46,3 +46,11 @@ offset_top = 96.0
 offset_right = 73.0
 offset_bottom = 127.0
 text = "换装"
+
+[node name="InspirationButton" type="Button" parent="Content" unique_id=1945000001]
+layout_mode = 0
+offset_left = 33.0
+offset_top = 136.0
+offset_right = 73.0
+offset_bottom = 167.0
+text = "灵感"

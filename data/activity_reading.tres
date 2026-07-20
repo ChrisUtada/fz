@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="ActivityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/activity_data.gd" id="1_activity"]
+
+[resource]
+script = ExtResource("1_activity")
+activity_name = "阅读"
+default_duration_minutes = 25
+inspiration_per_minute = 0.4
+description = "专注阅读，时间结束获得灵感值"

@@ -2,12 +2,12 @@ extends Control
 ## Main · 主场景（编排层 / Orchestrator）
 ## 职责：组装子组件（HUD + PlayArea），编排顾客生成与订单完成的生命周期。
 ## 原则：
-##   - 高内聚：只做"编排"，不持有业务逻辑（货币/换装/动画等在各自节点）
+##   - 高内聚：只做“编排”，不持有业务逻辑（货币/换装/动画等在各自节点）
 ##   - 低耦合：通过信号连接组件，不直接操作内部状态
 ##   - 组合：本节点 = 窗口管理（阶段0） + 游戏循环（阶段1）
 ##
 ## 输入处理说明：
-##   鼠标交互的"判定与响应"归顾客/宠物自身（contains_point + _input 三态）。
+##   鼠标交互的“判定与响应”归顾客/宠物自身（contains_point + _input 三态）。
 ##   主场景 _input 只负责：①点中关闭按钮交按钮处理 ②点中顾客/宠物则 return（节点已消费，不拖窗口）
 ##   ③点中空白则拖拽窗口。用 _customer_at_point / _pet_at_point（遍历子节点调 contains_point）守卫。
 
@@ -35,6 +35,9 @@ var _drag_offset := Vector2i.ZERO
 # ─── 阶段 2：衣服数据（Resource，换装场景消费） ───
 @export var clothes_pool: Array[ClothesData] = []   ## 衣服数据资源池（.tres），拖入即用
 
+# ─── 阶段 3：灵感活动数据（Resource，灵感弹窗消费） ───
+@export var activity_pool: Array[ActivityData] = []   ## 灵感活动资源池（.tres），拖入即用
+
 # 节点引用 —— 通过 @onready 注入，不硬编码路径搜索
 @onready var play_area: Node2D = $Panel/PlayArea
 @onready var pet_area: Node2D = $Panel/PetArea
@@ -47,6 +50,7 @@ func _ready() -> void:
 	_schedule_first_spawn()
 	_schedule_first_pet()
 	ui_panel.wardrobe_requested.connect(_open_wardrobe)
+	ui_panel.inspiration_requested.connect(_open_inspiration)
 
 
 # ═══════════════════ 阶段 0：窗口管理 ═══════════════════
@@ -80,6 +84,9 @@ func _input(event: InputEvent) -> void:
 			# 换装场景已打开时，不响应空白拖拽（换装场景覆盖全窗口处理自身交互）
 			if _has_wardrobe():
 				return
+			# 灵感面板已打开时，不响应空白拖拽
+			if _has_inspiration():
+				return
 			# 空白 → 开始拖拽窗口
 			_dragging = true
 			_drag_offset = DisplayServer.window_get_position() - DisplayServer.mouse_get_position()
@@ -102,6 +109,11 @@ func _on_ui_panel(pos: Vector2) -> bool:
 ## 换装场景是否已打开（作为 Main 子节点覆盖全窗口）
 func _has_wardrobe() -> bool:
 	return has_node("Wardrobe")
+
+
+## 灵感面板是否已打开（作为 Main 子节点覆盖全窗口）
+func _has_inspiration() -> bool:
+	return has_node("InspirationPanel")
 
 
 ## 遍历 PlayArea 子节点，调用各自的 contains_point 进行命中判定
@@ -210,3 +222,20 @@ func _open_wardrobe() -> void:
 	var wardrobe: Control = scene.instantiate()
 	wardrobe.clothes_pool = clothes_pool
 	add_child(wardrobe)
+
+
+# ═══════════════════ 阶段 3：灵感面板入口 ═══════════════════
+
+## 实例化灵感面板作为覆盖层，传入活动资源池；完成时通过信号回传 Main 编排
+func _open_inspiration() -> void:
+	if _has_inspiration():
+		return
+	# 数据驱动回退：未拖入任何 .tres 时，自动加载内置“阅读”活动，开箱即用
+	if activity_pool.is_empty():
+		var def = load("res://data/activity_reading.tres")
+		if def != null:
+			activity_pool = [def]
+	var scene := preload("res://scenes/inspiration_panel.tscn")
+	var panel: Control = scene.instantiate()
+	panel.activity_pool = activity_pool
+	add_child(panel)
