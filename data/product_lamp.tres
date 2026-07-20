@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="ProductData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/product_data.gd" id="1_prod"]
+
+[resource]
+script = ExtResource("1_prod")
+id = "lamp"
+display_name = "台灯"
+price = 50
+delivery_minutes = 10
+description = "温暖的氛围灯"

@@ -54,3 +54,11 @@ offset_top = 136.0
 offset_right = 73.0
 offset_bottom = 167.0
 text = "灵感"
+
+[node name="WarehouseButton" type="Button" parent="Content" unique_id=1945000002]
+layout_mode = 0
+offset_left = 33.0
+offset_top = 176.0
+offset_right = 73.0
+offset_bottom = 207.0
+text = "仓库"

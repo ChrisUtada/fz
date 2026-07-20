@@ -1,0 +1,65 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/warehouse_panel.gd" id="1_wh"]
+
+[node name="WarehousePanel" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_wh")
+
+[node name="Card" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -240.0
+offset_top = -200.0
+offset_right = 240.0
+offset_bottom = 200.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Bg" type="ColorRect" parent="Card"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.945, 0.937, 0.91, 0.97)
+
+[node name="Content" type="VBoxContainer" parent="Card"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 12.0
+offset_top = 12.0
+offset_right = -12.0
+offset_bottom = -12.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 12
+
+[node name="TitleBar" type="HBoxContainer" parent="Card/Content"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Card/Content/TitleBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "仓库"
+
+[node name="CloseButton" type="Button" parent="Card/Content/TitleBar"]
+layout_mode = 2
+text = "×"
+
+[node name="Grid" type="GridContainer" parent="Card/Content"]
+layout_mode = 2
+theme_override_constants/separation = 12
+columns = 3

@@ -1,14 +1,24 @@
 extends Node
 ## GameManager · 全局状态管理（唯一 autoload 单例）
-## 职责：持有 gold / inspiration 货币状态；管理“灵感活动”计时与离线收益结算。
+## 职责：
+##   - 持有 gold / inspiration 货币状态
+##   - 管理“灵感活动”计时与离线收益结算
+##   - 管理“电话购物”订单计时与离线到货结算
+##   - 管理“仓库”已拥有库存
 ## 原则：低耦合 —— 其他节点通过 signal 订阅变化，不直接读写内部字段。
-##       活动计时采用真实墙钟时间戳（get_unix_time_from_system）+ 存档，
+##       计时采用真实墙钟时间戳（get_unix_time_from_system）+ 存档，
 ##       因此关掉游戏再打开也能按真实流逝时间结算（离线收益）。
 
 signal currency_changed(new_gold: int, new_inspiration: int)
 signal activity_started
 signal activity_finished(reward: Dictionary)
 signal activity_cancelled
+
+# ─── 电话购物 / 仓库 信号 ───
+signal orders_changed            ## 进行中订单列表变化（下单 / 到货移出）
+signal order_arrived(id: String, name: String)  ## 某订单配送完成（进入待收）
+signal arrived_changed          ## 待收列表变化（影响电话「已到货」提示）
+signal warehouse_changed        ## 库存变化（入库）
 
 @export var initial_gold: int = 0
 @export var initial_inspiration: int = 0
@@ -32,19 +42,29 @@ var _activity_per_minute: float = 0.0
 var _activity_start_unix: int = 0
 var _activity_duration_sec: float = 0.0
 
+# ─── 电话订单（墙钟 + 存档，支持离线到货） ───
+const ORDER_SAVE_PATH := "user://phone_orders.json"
+const WAREHOUSE_PATH := "user://warehouse.cfg"
+
+var _orders: Array = []      # 进行中订单：[ {id, name, start_unix, duration_sec}, ... ]
+var _arrived: Array = []      # 待收货物：[ {id, name}, ... ]
+var _owned: Dictionary = {}   # 已拥有库存：id -> true
+
 
 func _ready() -> void:
 	gold = initial_gold
 	inspiration = initial_inspiration
-	_load_activity()  # 启动即检查存档：已过期则补发，未过期则后台继续
+	_load_activity()    # 灵感：已过期补发 / 未过期后台继续
+	_load_orders()      # 订单：离线期间到货的进待收，未到的后台继续
+	_load_warehouse()   # 库存：还原已拥有集合
 
 
 func _process(_delta: float) -> void:
-	if not _activity_running:
-		return
-	var elapsed := Time.get_unix_time_from_system() - _activity_start_unix
-	if elapsed >= _activity_duration_sec:
-		_finish_activity()
+	if _activity_running:
+		var elapsed := Time.get_unix_time_from_system() - _activity_start_unix
+		if elapsed >= _activity_duration_sec:
+			_finish_activity()
+	_tick_orders()
 
 
 # ═══════════════════ 货币 ═══════════════════
@@ -100,17 +120,14 @@ func cancel_activity() -> void:
 	activity_cancelled.emit()
 
 
-## 查询：是否在进行中
 func is_activity_running() -> bool:
 	return _activity_running
 
 
-## 查询：进行中活动名称
 func get_active_activity_name() -> String:
 	return _activity_name
 
 
-## 查询：剩余秒数（墙钟实时算）
 func get_remaining_sec() -> float:
 	if not _activity_running:
 		return 0.0
@@ -118,7 +135,6 @@ func get_remaining_sec() -> float:
 	return maxf(0.0, _activity_duration_sec - elapsed)
 
 
-## 查询：预计将获得的灵感值（基于设定时长）
 func get_pending_reward() -> int:
 	if not _activity_running:
 		return 0
@@ -141,8 +157,6 @@ func _compute_activity_reward(per_minute: float, minutes: int) -> int:
 	var raw := float(minutes) * per_minute
 	return int(ceil(raw - 0.0001))
 
-
-# ─── 存档（user://，仅持久化结算所需的最小信息） ───
 
 func _save_activity() -> void:
 	var payload := {
@@ -175,10 +189,8 @@ func _load_activity() -> void:
 	_activity_duration_sec = float(parsed.get("duration_sec", 0.0))
 	var elapsed := Time.get_unix_time_from_system() - _activity_start_unix
 	if elapsed >= _activity_duration_sec:
-		# 离线期间已结束 → 立即补发
 		_finish_activity()
 	else:
-		# 仍在进行 → 后台继续倒计时
 		_activity_running = true
 
 
@@ -186,3 +198,167 @@ func _delete_activity_save() -> void:
 	var dir := DirAccess.open("user://")
 	if dir != null:
 		dir.remove("inspiration_active.json")
+
+
+# ═══════════════════ 电话订单（多订单并行 + 墙钟 + 存档） ═══════════════════
+
+## 下单：校验金币 → 扣款 → 记录进行中订单（墙钟时间戳）→ 立即存档。返回是否成功。
+func start_order(product: ProductData) -> bool:
+	if product == null:
+		return false
+	if gold < product.price:
+		return false
+	subtract_gold(product.price)
+	var order := {
+		"id": product.id,
+		"name": product.display_name,
+		"start_unix": int(Time.get_unix_time_from_system()),
+		"duration_sec": float(product.delivery_minutes) * 60.0
+	}
+	_orders.append(order)
+	_save_orders()
+	orders_changed.emit()
+	return true
+
+
+## 返回进行中订单快照（含实时剩余秒数与进度 0~1），供电话 UI 刷新。
+func get_orders() -> Array:
+	var now := Time.get_unix_time_from_system()
+	var out: Array = []
+	for o in _orders:
+		var elapsed := now - int(o["start_unix"])
+		var remaining := maxf(0.0, float(o["duration_sec"]) - elapsed)
+		var progress := clampf(float(elapsed) / float(o["duration_sec"]), 0.0, 1.0)
+		out.append({
+			"id": o["id"],
+			"name": o["name"],
+			"remaining_sec": remaining,
+			"progress": progress
+		})
+	return out
+
+
+## 返回待收货物快照（已到货未领取）。返回副本，避免外部改动内部。
+func get_arrived() -> Array:
+	return _arrived.duplicate()
+
+
+## 是否有待收货物（决定电话点击 → 打开收货清单 or 产品目录）。
+func has_arrived() -> bool:
+	return not _arrived.is_empty()
+
+
+## 确认收货：把全部待收货物解锁进仓库、清空待收、存档。
+func confirm_receipt() -> void:
+	if _arrived.is_empty():
+		return
+	for a in _arrived:
+		_unlock_internal(a["id"])
+	_arrived.clear()
+	_save_orders()
+	arrived_changed.emit()
+	warehouse_changed.emit()
+
+
+func _tick_orders() -> void:
+	if _orders.is_empty():
+		return
+	var now := Time.get_unix_time_from_system()
+	var arrived_something := false
+	# 倒序遍历，便于安全移除
+	for i in range(_orders.size() - 1, -1, -1):
+		var o: Dictionary = _orders[i]
+		var elapsed := now - int(o["start_unix"])
+		if elapsed >= float(o["duration_sec"]):
+			_orders.remove_at(i)
+			_arrived.append({"id": o["id"], "name": o["name"]})
+			arrived_something = true
+			order_arrived.emit(o["id"], o["name"])
+	if arrived_something:
+		_save_orders()
+		orders_changed.emit()
+		arrived_changed.emit()
+
+
+# ═══════════════════ 仓库库存 ═══════════════════
+
+func unlock_product(id: String) -> void:
+	_unlock_internal(id)
+
+
+func has_product(id: String) -> bool:
+	return _owned.has(id)
+
+
+func get_owned_ids() -> Array:
+	return _owned.keys()
+
+
+func _unlock_internal(id: String) -> void:
+	if id.is_empty():
+		return
+	_owned[id] = true
+	_save_warehouse()
+
+
+func _save_warehouse() -> void:
+	var cfg := ConfigFile.new()
+	for id in _owned.keys():
+		cfg.set_value("owned", id, true)
+	cfg.save(WAREHOUSE_PATH)
+
+
+func _load_warehouse() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(WAREHOUSE_PATH) != OK:
+		return
+	for id in cfg.get_section_keys("owned"):
+		_owned[str(id)] = true
+
+
+# ─── 订单存档（user://，持久化结算所需最小信息） ───
+
+func _save_orders() -> void:
+	var payload := {"orders": _orders, "arrived": _arrived}
+	var f := FileAccess.open(ORDER_SAVE_PATH, FileAccess.WRITE)
+	if f != null:
+		f.store_string(JSON.stringify(payload))
+		f.close()
+
+
+func _load_orders() -> void:
+	if not FileAccess.file_exists(ORDER_SAVE_PATH):
+		return
+	var f := FileAccess.open(ORDER_SAVE_PATH, FileAccess.READ)
+	if f == null:
+		return
+	var txt := f.get_as_text()
+	f.close()
+	var parsed = JSON.parse_string(txt)
+	if parsed == null or not parsed is Dictionary:
+		_delete_orders_save()
+		return
+	var orders_arr: Array = parsed.get("orders", [])
+	var arrived_arr: Array = parsed.get("arrived", [])
+	var now := Time.get_unix_time_from_system()
+	for o in orders_arr:
+		if not o is Dictionary:
+			continue
+		var elapsed := now - int(o.get("start_unix", 0))
+		if elapsed >= float(o.get("duration_sec", 0)):
+			# 离线期间已到货 → 进待收（待用户确认收货入库）
+			_arrived.append({"id": o.get("id", ""), "name": o.get("name", "")})
+		else:
+			# 仍在进行 → 后台继续
+			_orders.append(o)
+	for a in arrived_arr:
+		if a is Dictionary:
+			_arrived.append({"id": a.get("id", ""), "name": a.get("name", "")})
+	# 规整存档：已到的从进行中移走
+	_save_orders()
+
+
+func _delete_orders_save() -> void:
+	var dir := DirAccess.open("user://")
+	if dir != null:
+		dir.remove("phone_orders.json")

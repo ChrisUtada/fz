@@ -1,15 +1,17 @@
 extends Control
 ## Main · 主场景（编排层 / Orchestrator）
-## 职责：组装子组件（HUD + PlayArea），编排顾客生成与订单完成的生命周期。
+## 职责：组装子组件（HUD + PlayArea），编排顾客生成与订单完成的生命周期，
+##       以及电话购物 / 仓库 / 灵感等副玩法入口。
 ## 原则：
 ##   - 高内聚：只做“编排”，不持有业务逻辑（货币/换装/动画等在各自节点）
 ##   - 低耦合：通过信号连接组件，不直接操作内部状态
-##   - 组合：本节点 = 窗口管理（阶段0） + 游戏循环（阶段1）
+##   - 组合：本节点 = 窗口管理（阶段0） + 游戏循环（阶段1） + 副玩法入口（阶段3）
 ##
 ## 输入处理说明：
 ##   鼠标交互的“判定与响应”归顾客/宠物自身（contains_point + _input 三态）。
 ##   主场景 _input 只负责：①点中关闭按钮交按钮处理 ②点中顾客/宠物则 return（节点已消费，不拖窗口）
-##   ③点中空白则拖拽窗口。用 _customer_at_point / _pet_at_point（遍历子节点调 contains_point）守卫。
+##   ③点中电话摆件则 return（电话自身处理点击）④点中空白则拖拽窗口。
+##   用 _customer_at_point / _pet_at_point / _phone_at_point（遍历子节点调 contains_point）守卫。
 
 # ─── 阶段 0：窗口管理 ───
 var _dragging := false
@@ -38,11 +40,17 @@ var _drag_offset := Vector2i.ZERO
 # ─── 阶段 3：灵感活动数据（Resource，灵感弹窗消费） ───
 @export var activity_pool: Array[ActivityData] = []   ## 灵感活动资源池（.tres），拖入即用
 
+# ─── 阶段 3 补：产品数据（Resource，电话购物 / 仓库消费） ───
+@export var product_pool: Array[ProductData] = []     ## 产品资源池（.tres），拖入即用
+
 # 节点引用 —— 通过 @onready 注入，不硬编码路径搜索
 @onready var play_area: Node2D = $Panel/PlayArea
 @onready var pet_area: Node2D = $Panel/PetArea
 @onready var close_button: Button = $Panel/CloseButton
 @onready var ui_panel: Control = $Panel/UIPanel
+
+# 电话摆件引用（运行期实例化，见 _instance_phone）
+var _phone: Control = null
 
 
 func _ready() -> void:
@@ -51,6 +59,9 @@ func _ready() -> void:
 	_schedule_first_pet()
 	ui_panel.wardrobe_requested.connect(_open_wardrobe)
 	ui_panel.inspiration_requested.connect(_open_inspiration)
+	ui_panel.warehouse_requested.connect(_open_warehouse)
+	_ensure_product_pool()
+	_instance_phone()
 
 
 # ═══════════════════ 阶段 0：窗口管理 ═══════════════════
@@ -80,6 +91,18 @@ func _input(event: InputEvent) -> void:
 				return
 			# 点中顾客：顾客自身 _input 已消费并自行处理（拖动/轻点完成），此处不拖窗口
 			if _customer_at_point(mp) != null:
+				return
+			# 点中电话摆件：交给电话自身处理点击，不拖窗口
+			if _phone_at_point(mp):
+				return
+			# 产品目录已打开时，不响应空白拖拽（覆盖层处理自身交互）
+			if _has_catalog():
+				return
+			# 收货清单已打开时
+			if _has_receipt():
+				return
+			# 仓库已打开时
+			if _has_warehouse():
 				return
 			# 换装场景已打开时，不响应空白拖拽（换装场景覆盖全窗口处理自身交互）
 			if _has_wardrobe():
@@ -116,6 +139,21 @@ func _has_inspiration() -> bool:
 	return has_node("InspirationPanel")
 
 
+## 产品目录弹窗是否已打开
+func _has_catalog() -> bool:
+	return has_node("ProductCatalog")
+
+
+## 收货清单弹窗是否已打开
+func _has_receipt() -> bool:
+	return has_node("ReceiptPanel")
+
+
+## 仓库弹窗是否已打开
+func _has_warehouse() -> bool:
+	return has_node("WarehousePanel")
+
+
 ## 遍历 PlayArea 子节点，调用各自的 contains_point 进行命中判定
 func _customer_at_point(global_pos: Vector2) -> Node2D:
 	for c in play_area.get_children():
@@ -130,6 +168,13 @@ func _pet_at_point(global_pos: Vector2) -> Node2D:
 		if is_instance_valid(p) and p.has_method("contains_point") and p.contains_point(global_pos):
 			return p
 	return null
+
+
+## 电话摆件是否被点中（Phone 实现 contains_point）
+func _phone_at_point(global_pos: Vector2) -> bool:
+	if _phone == null or not _phone.has_method("contains_point"):
+		return false
+	return _phone.contains_point(global_pos)
 
 
 func _on_close_pressed() -> void:
@@ -238,4 +283,63 @@ func _open_inspiration() -> void:
 	var scene := preload("res://scenes/inspiration_panel.tscn")
 	var panel: Control = scene.instantiate()
 	panel.activity_pool = activity_pool
+	add_child(panel)
+
+
+# ═══════════════════ 阶段 3 补：电话购物 + 仓库 ═══════════════════
+
+## 数据驱动回退：未拖入任何 .tres 时，自动加载内置三个产品
+func _ensure_product_pool() -> void:
+	if not product_pool.is_empty():
+		return
+	for path in ["res://data/product_chair.tres", "res://data/product_desk.tres", "res://data/product_lamp.tres"]:
+		var res = load(path)
+		if res != null:
+			product_pool.append(res)
+
+
+## 实例化桌面电话摆件，挂到 Panel 下，连接点击信号
+func _instance_phone() -> void:
+	var scene := preload("res://scenes/phone.tscn")
+	var phone: Control = scene.instantiate()
+	$Panel.add_child(phone)
+	_phone = phone
+	phone.phone_pressed.connect(_on_phone_pressed)
+
+
+## 电话点击：有到货 → 打开收货清单；否则 → 打开产品目录
+func _on_phone_pressed() -> void:
+	if GameManager.has_arrived():
+		_open_receipt()
+	else:
+		_open_catalog()
+
+
+## 实例化产品目录弹窗（覆盖层）
+func _open_catalog() -> void:
+	if _has_catalog():
+		return
+	var scene := preload("res://scenes/product_catalog.tscn")
+	var panel: Control = scene.instantiate()
+	panel.product_pool = product_pool
+	add_child(panel)
+
+
+## 实例化收货清单弹窗（覆盖层）
+func _open_receipt() -> void:
+	if _has_receipt():
+		return
+	var scene := preload("res://scenes/receipt_panel.tscn")
+	var panel: Control = scene.instantiate()
+	panel.product_pool = product_pool
+	add_child(panel)
+
+
+## 实例化仓库弹窗（覆盖层）
+func _open_warehouse() -> void:
+	if _has_warehouse():
+		return
+	var scene := preload("res://scenes/warehouse_panel.tscn")
+	var panel: Control = scene.instantiate()
+	panel.product_pool = product_pool
 	add_child(panel)
