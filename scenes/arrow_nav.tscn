@@ -1,0 +1,43 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/arrow_nav.gd" id="1_arrownav"]
+
+[node name="ArrowNav" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_bottom = -52.0
+mouse_filter = 2
+visible = false
+script = ExtResource("1_arrownav")
+
+[node name="LeftArrow" type="Button" parent="."]
+layout_mode = 1
+anchors_preset = 4
+anchor_left = 0.0
+anchor_top = 0.5
+anchor_right = 0.0
+anchor_bottom = 0.5
+offset_left = 4.0
+offset_top = -22.0
+offset_right = 32.0
+offset_bottom = 22.0
+mouse_filter = 1
+text = "‹"
+theme_override_font_sizes/font_size = 26
+
+[node name="RightArrow" type="Button" parent="."]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -32.0
+offset_top = -22.0
+offset_right = -4.0
+offset_bottom = 22.0
+mouse_filter = 1
+text = "›"
+theme_override_font_sizes/font_size = 26

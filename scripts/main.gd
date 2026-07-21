@@ -53,6 +53,7 @@ var _drag_offset := Vector2i.ZERO
 @onready var screen_manager: ScreenManager = $ScreenManager   ## 屏幕互斥显隐管理器
 @onready var screens_root: Control = $Screens                 ## 四个可切换屏的容器（覆盖层）
 @onready var tab_bar: SignboardTabBar = $TabBar               ## 底部招牌导航栏
+var _arrow_nav: ArrowNav = null                              ## 步骤 1.5：活动面板左右箭头（覆盖层，绘制在屏之上）
 
 # 电话摆件引用（运行期实例化，见 _instance_phone）
 var _phone: Control = null
@@ -95,6 +96,16 @@ func _configure_window() -> void:
 	win.borderless = true
 	win.transparent = true
 	win.always_on_top = false
+	# 锁定到当前屏幕右下角（桌面常驻挂件形态）；usable_rect 已排除任务栏
+	_position_to_bottom_right(win)
+
+
+## 把窗口定位到当前屏幕的右下角（排除任务栏区域，避免被遮挡）
+func _position_to_bottom_right(win: Window) -> void:
+	var screen_idx := DisplayServer.window_get_current_screen()
+	var rect := DisplayServer.screen_get_usable_rect(screen_idx)
+	var pos := rect.position + rect.size - win.size
+	DisplayServer.window_set_position(pos)
 
 
 func _input(event: InputEvent) -> void:
@@ -416,6 +427,10 @@ func _setup_screens() -> void:
 	tab_bar.tab_selected.connect(_on_tab_selected)
 	# 屏变化 → 回灌 TabBar 高亮（home/farm/wardrobe/workshop）
 	screen_manager.screen_changed.connect(tab_bar.set_active)
+	# 步骤 1.5：活动面板左右箭头导航（贴在屏两侧，绘制在屏之上，家园态/仓库浮层时隐藏）
+	_arrow_nav = preload("res://scenes/arrow_nav.tscn").instantiate()
+	add_child(_arrow_nav)                      ## 挂到 Main：绘制序在 screens_root / tab_bar 之上
+	_arrow_nav.setup(screen_manager)
 	# 初始进入家园态并高亮「家园」tab
 	screen_manager.go_home()
 
@@ -443,6 +458,9 @@ func _toggle_warehouse_global() -> void:
 		_warehouse_panel.queue_free()      ## × 按钮也会 queue_free，tree_exited 兜底清空
 	else:
 		_open_warehouse_global()
+	# 仓库浮层打开时屏蔽左右箭头（浮层盖在屏之上，箭头无意义）；关闭即恢复
+	if _arrow_nav != null:
+		_arrow_nav.set_overlay_blocked(_has_warehouse())
 
 
 func _open_warehouse_global() -> void:
@@ -463,6 +481,9 @@ func _has_warehouse() -> bool:
 
 func _on_warehouse_exited() -> void:
 	_warehouse_panel = null
+	## 仓库浮层被 × 关闭（queue_free）时同样解除箭头屏蔽
+	if _arrow_nav != null:
+		_arrow_nav.set_overlay_blocked(false)
 
 
 ## 构建一个占位屏（覆盖家园中央区、让出底部招牌栏）。阶段 2 会用真实屏替换。
@@ -472,12 +493,16 @@ func _make_placeholder_screen(title: String) -> Control:
 	root.mouse_filter = Control.MOUSE_FILTER_STOP   ## 覆盖层拦截点击，不穿透到家园
 	var bg := ColorRect.new()
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.offset_left = 28.0                            ## 步骤 1.5：左右留 gutter，避免被箭头遮挡
+	bg.offset_right = -28.0
 	bg.offset_bottom = -52.0                          ## 让出底部 52px 招牌栏
 	bg.color = Color(0.16, 0.13, 0.11, 0.94)
 	bg.mouse_filter = Control.MOUSE_FILTER_STOP
 	root.add_child(bg)
 	var label := Label.new()
 	label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	label.offset_left = 28.0                         ## 与 bg 同 gutter，文字不压在箭头上
+	label.offset_right = -28.0
 	label.offset_bottom = -52.0
 	label.text = title
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
