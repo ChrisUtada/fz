@@ -45,6 +45,13 @@ func _ready() -> void:
 ## 死锁，永远动不了。同理，set_input_as_handled 只在确实命中电话时调用，否则会吞掉
 ## 全局 release 事件导致其它弹窗按钮（需 press+release）全部点不动。
 func _input(ev: InputEvent) -> void:
+	# 覆盖层弹窗打开时不抢占点击（同 customer.gd，避免吃掉弹窗按钮的点击）。
+	# 关键：必须先清空拖动态再 return——否则「双击打开订单中心」那次的 release 会被本守卫
+	# 吞掉，_pressed 残留为 true；关闭弹窗后鼠标一动即触发「幽灵拖动」，电话跳到指针处。
+	if GameManager.is_modal_open():
+		_pressed = false
+		_dragging = false
+		return
 	if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT:
 		if ev.pressed:
 			if contains_point(get_global_mouse_position()):

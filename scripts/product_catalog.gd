@@ -10,6 +10,12 @@ extends Control
 const LIST_VIEW := 0
 const CONFIRM_VIEW := 1
 
+## 文字配色：卡片背景是浅米色，Godot 默认字体色偏浅→浅底浅字看不清，
+## 故所有文字显式覆盖为深色；「金币不足」禁用态用偏红色，既可见又提示不可购买。
+const TEXT_DARK := Color(0.14, 0.12, 0.10)
+const TEXT_MUTED := Color(0.40, 0.36, 0.30)
+const TEXT_DISABLED := Color(0.72, 0.26, 0.20)
+
 @export var product_pool: Array[ProductData] = []
 
 var _current_view: int = LIST_VIEW
@@ -29,9 +35,35 @@ func _ready() -> void:
 	_close_button.pressed.connect(_on_close)
 	_confirm_ok.pressed.connect(_on_confirm_ok)
 	_confirm_cancel.pressed.connect(_show_list)
+	# 场景内已有节点也统一上深色文字（标题、金币提示、确认视图等）
+	var title := get_node_or_null("Card/Content/TitleBar/Title") as Label
+	if title != null:
+		_style_label(title)
+	_style_label(_hint)
+	_style_label(_confirm_label)
+	_style_button(_close_button)
+	_style_button(_confirm_ok)
+	_style_button(_confirm_cancel)
 	_ensure_pool()
 	_populate()
 	_show_list()
+
+
+# ═══════════════════ 文字配色 ═══════════════════
+
+## 给 Label 覆盖深色字体（浅底可读）
+func _style_label(l: Label) -> void:
+	l.add_theme_color_override("font_color", TEXT_DARK)
+
+
+## 给 Button 覆盖各状态字体色：默认 Godot 主题按钮各态字色也偏浅，需逐态覆盖，
+## 尤其 font_disabled_color——否则「金币不足」禁用态灰白不可见。
+func _style_button(b: Button) -> void:
+	b.add_theme_color_override("font_color", TEXT_DARK)
+	b.add_theme_color_override("font_hover_color", TEXT_DARK)
+	b.add_theme_color_override("font_pressed_color", TEXT_DARK)
+	b.add_theme_color_override("font_focus_color", TEXT_DARK)
+	b.add_theme_color_override("font_disabled_color", TEXT_DISABLED)
 
 
 # ═══════════════════ 数据驱动 ═══════════════════
@@ -52,6 +84,7 @@ func _populate() -> void:
 	if product_pool.is_empty():
 		var empty := Label.new()
 		empty.text = "（暂无商品）"
+		_style_label(empty)
 		_product_list.add_child(empty)
 		return
 	for p in product_pool:
@@ -66,15 +99,22 @@ func _add_product_row(p: ProductData) -> void:
 	var name_l := Label.new()
 	name_l.text = p.display_name
 	name_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_style_label(name_l)
 	var price_l := Label.new()
 	price_l.text = "%d 金币" % p.price
+	_style_label(price_l)
 	var deliv_l := Label.new()
 	deliv_l.text = "%d 分送达" % p.delivery_minutes
+	_style_label(deliv_l)
 	var buy := Button.new()
 	buy.text = "购买"
 	buy.pressed.connect(func(): _on_buy_pressed(p))
+	_style_button(buy)
 	if GameManager.gold < p.price:
+		# 买不起：禁用并给出可见提示（原先只灰掉按钮、浅底浅字像「无响应」）
 		buy.disabled = true
+		buy.text = "金币不足"
+		buy.tooltip_text = "需要 %d 金币，当前 %d" % [p.price, GameManager.gold]
 
 	row.add_child(icon)
 	row.add_child(name_l)

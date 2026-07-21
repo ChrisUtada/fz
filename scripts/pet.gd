@@ -124,6 +124,9 @@ func _apply_visuals() -> void:
 func _input(event: InputEvent) -> void:
 	if not _alive:
 		return
+	# 覆盖层弹窗打开时不抢占点击（同 customer.gd，避免吃掉弹窗按钮的点击）。
+	if GameManager.is_modal_open():
+		return
 
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:

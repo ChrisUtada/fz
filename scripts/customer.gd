@@ -120,6 +120,10 @@ func on_clicked() -> void:
 func _input(event: InputEvent) -> void:
 	if _completed:
 		return
+	# 覆盖层弹窗打开时不抢占点击：否则本顾客会用 set_input_as_handled 吃掉落在其
+	# 身上的点击，导致弹窗按钮（如「去商城」）偶发点不动。
+	if GameManager.is_modal_open():
+		return
 
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:

@@ -67,6 +67,11 @@ func contains_point(global_pos: Vector2) -> bool:
 
 
 func _input(ev: InputEvent) -> void:
+	# 覆盖层弹窗打开时不抢占点击（同 customer.gd，避免吃掉弹窗按钮的点击）。
+	# 先清空拖动态再 return，避免 release 被守卫吞掉后 _dragging 残留、关窗后跟随鼠标。
+	if GameManager.is_modal_open():
+		_dragging = false
+		return
 	if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT:
 		if ev.pressed:
 			if contains_point(get_global_mouse_position()):

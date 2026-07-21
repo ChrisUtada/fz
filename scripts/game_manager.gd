@@ -4,7 +4,7 @@ extends Node
 ##   - 持有 gold / inspiration 货币状态
 ##   - 管理“灵感活动”计时与离线收益结算
 ##   - 管理“电话购物”订单计时与离线到货结算
-##   - 管理“仓库”已拥有库存
+##   - 管理统一的 inventory 库存（跨场景唯一真相源；物品元数据按 id 从注册表解析）
 ## 原则：低耦合 —— 其他节点通过 signal 订阅变化，不直接读写内部字段。
 ##       计时采用真实墙钟时间戳（get_unix_time_from_system）+ 存档，
 ##       因此关掉游戏再打开也能按真实流逝时间结算（离线收益）。
@@ -18,7 +18,13 @@ signal activity_cancelled
 signal orders_changed            ## 进行中订单列表变化（下单 / 到货移出）
 signal order_arrived(id: String, name: String)  ## 某订单配送完成（进入待收）
 signal arrived_changed          ## 待收列表变化（影响电话「已到货」提示）
-signal warehouse_changed        ## 库存变化（入库）
+signal warehouse_changed        ## 库存变化（入库，向后兼容；新代码建议用 inventory_changed）
+signal inventory_changed         ## 统一库存变化（仓库角标 / 网格监听）
+
+# ─── 统一库存（inventory，跨场景唯一真相源） ───
+const INVENTORY_SAVE_PATH := "user://inventory.cfg"
+var inventory: Dictionary = {}       # id -> count(int)
+var _item_registry: Dictionary = {}  # id -> ItemData（运行时注册，非存档；按 id 解析元数据）
 
 @export var initial_gold: int = 0
 @export var initial_inspiration: int = 0
@@ -48,7 +54,19 @@ const WAREHOUSE_PATH := "user://warehouse.cfg"
 
 var _orders: Array = []      # 进行中订单：[ {id, name, start_unix, duration_sec}, ... ]
 var _arrived: Array = []      # 待收货物：[ {id, name}, ... ]
-var _owned: Dictionary = {}   # 已拥有库存：id -> true
+
+# ─── UI 模态标志（覆盖层弹窗是否打开） ───
+## 覆盖层弹窗（产品目录/订单中心/仓库/换装/灵感）打开时置真，由 Main 每帧同步。
+## 顾客/宠物/电话/摆放物在 _input 阶段据此自我屏蔽：弹窗开着时不再抢占点击，
+## 否则游荡的顾客会用 set_input_as_handled 吃掉落在其身上的点击，
+## 导致弹窗按钮（如「去商城」）偶发点不动。
+var _modal_open: bool = false
+
+func set_modal_open(v: bool) -> void:
+	_modal_open = v
+
+func is_modal_open() -> bool:
+	return _modal_open
 
 
 func _ready() -> void:
@@ -56,7 +74,7 @@ func _ready() -> void:
 	inspiration = initial_inspiration
 	_load_activity()    # 灵感：已过期补发 / 未过期后台继续
 	_load_orders()      # 订单：离线期间到货的进待收，未到的后台继续
-	_load_warehouse()   # 库存：还原已拥有集合
+	_load_inventory()   # 库存：还原统一 inventory（含旧仓库迁移）
 
 
 func _process(_delta: float) -> void:
@@ -296,40 +314,110 @@ func _tick_orders() -> void:
 		arrived_changed.emit()
 
 
-# ═══════════════════ 仓库库存 ═══════════════════
+# ═══════════════════ 统一库存（inventory，跨场景唯一真相源） ═══════════════════
+## inventory: id -> count(int)。物品元数据(data) 由 _item_registry 在运行时按 id 解析，
+## 这样避免 autoload(GameManager) 在 main 注册物品前就需要实例数据，载入顺序更稳。
 
+## 运行时注册物品元数据（main 在 _ready 把 product_pool 等注册进来）
+func register_item(data: ItemData) -> void:
+	if data != null and not data.id.is_empty():
+		_item_registry[data.id] = data
+
+
+func get_item(id: String) -> ItemData:
+	return _item_registry.get(id, null)
+
+
+func add_item(id: String, n: int = 1) -> void:
+	if id.is_empty() or n <= 0:
+		return
+	inventory[id] = inventory.get(id, 0) + n
+	_save_inventory()
+	inventory_changed.emit()
+
+
+func remove_item(id: String, n: int = 1) -> void:
+	if id.is_empty() or not inventory.has(id):
+		return
+	inventory[id] -= n
+	if inventory[id] <= 0:
+		inventory.erase(id)
+	_save_inventory()
+	inventory_changed.emit()
+
+
+func has_item(id: String) -> bool:
+	return inventory.has(id) and inventory[id] > 0
+
+
+func get_count(id: String) -> int:
+	return inventory.get(id, 0)
+
+
+## 按分类返回 [{data, count}]（data 经注册表解析；未注册的物品跳过）
+func get_by_category(cat: int) -> Array:
+	var out: Array = []
+	for id in inventory.keys():
+		var d: ItemData = get_item(id)
+		if d != null and d.category == cat:
+			out.append({"data": d, "count": inventory[id]})
+	return out
+
+
+func get_total_count() -> int:
+	var t := 0
+	for id in inventory.keys():
+		t += inventory[id]
+	return t
+
+
+# —— 向后兼容包装（旧仓库 API 委托给 inventory；阶段 2.2 仓库屏将直接读 inventory） ——
 func unlock_product(id: String) -> void:
-	_unlock_internal(id)
+	add_item(id, 1)
 
 
 func has_product(id: String) -> bool:
-	return _owned.has(id)
+	return has_item(id)
 
 
 func get_owned_ids() -> Array:
-	return _owned.keys()
+	return inventory.keys()
 
 
 func _unlock_internal(id: String) -> void:
 	if id.is_empty():
 		return
-	_owned[id] = true
-	_save_warehouse()
+	add_item(id, 1)
 
 
-func _save_warehouse() -> void:
+func _save_inventory() -> void:
 	var cfg := ConfigFile.new()
-	for id in _owned.keys():
-		cfg.set_value("owned", id, true)
-	cfg.save(WAREHOUSE_PATH)
+	for id in inventory.keys():
+		cfg.set_value("items", id, inventory[id])
+	cfg.save(INVENTORY_SAVE_PATH)
 
 
-func _load_warehouse() -> void:
+func _load_inventory() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(INVENTORY_SAVE_PATH) == OK:
+		for id in cfg.get_section_keys("items"):
+			var cnt: int = int(cfg.get_value("items", id, 0))
+			if cnt > 0:
+				inventory[str(id)] = cnt
+	if inventory.is_empty():
+		_migrate_warehouse_to_inventory()
+
+
+## 一次性迁移：旧 warehouse.cfg（id 集合）搬到统一 inventory（count=1）
+func _migrate_warehouse_to_inventory() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(WAREHOUSE_PATH) != OK:
 		return
 	for id in cfg.get_section_keys("owned"):
-		_owned[str(id)] = true
+		var sid := str(id)
+		if not inventory.has(sid):
+			inventory[sid] = 1
+	_save_inventory()
 
 
 # ─── 订单存档（user://，持久化结算所需最小信息） ───

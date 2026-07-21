@@ -62,8 +62,19 @@ func _ready() -> void:
 	ui_panel.inspiration_requested.connect(_open_inspiration)
 	ui_panel.warehouse_requested.connect(_open_warehouse)
 	_ensure_product_pool()
+	for p in product_pool:
+		GameManager.register_item(p)
 	_instance_phone()
 	placement_manager.init(product_pool, $Panel/PlacedItems)
+
+
+## 每帧把「是否有覆盖层弹窗打开」同步给 GameManager，供顾客/宠物/电话/摆放物
+## 在 _input 阶段自我屏蔽（弹窗开着时不抢占点击，避免吃掉弹窗按钮的点击）。
+func _process(_delta: float) -> void:
+	GameManager.set_modal_open(
+		_has_catalog() or _has_phone_panel() or _has_warehouse()
+		or _has_wardrobe() or _has_inspiration()
+	)
 
 
 # ═══════════════════ 阶段 0：窗口管理 ═══════════════════
