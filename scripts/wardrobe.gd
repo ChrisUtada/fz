@@ -49,6 +49,18 @@ func _ready() -> void:
 	_setup_layers()
 	_load_outfit()
 	_populate_backpack()
+	# 作为常驻切屏时：每次重新可见都从 GameManager 全量同步（穿搭 + 背包），
+	# 避免隐藏期间 inventory/equipped 变化导致内容失效。
+	visibility_changed.connect(_on_visibility_changed)
+
+
+## 切屏可见即刷新：重置图层→按 equipped 还原穿搭→重建背包（已拥有服装）
+func _on_visibility_changed() -> void:
+	if not visible:
+		return
+	_setup_layers()
+	_load_outfit()
+	_populate_backpack()
 
 
 # ═══════════════════ 背包生成 ═══════════════════

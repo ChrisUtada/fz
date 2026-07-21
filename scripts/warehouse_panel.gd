@@ -18,6 +18,14 @@ func _ready() -> void:
 	_close_btn.pressed.connect(_on_close)
 	_ensure_pool()
 	_populate()
+	# 作为常驻切屏时：每次重新可见都重建网格，反映隐藏期间新到货/新拥有的物品。
+	visibility_changed.connect(_on_visibility_changed)
+
+
+## 切屏可见即刷新：重建图鉴网格（拥有态可能已变化）
+func _on_visibility_changed() -> void:
+	if visible:
+		_populate()
 
 
 func _ensure_pool() -> void:

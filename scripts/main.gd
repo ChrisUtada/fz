@@ -47,8 +47,12 @@ var _drag_offset := Vector2i.ZERO
 @onready var play_area: Node2D = $Panel/PlayArea
 @onready var pet_area: Node2D = $Panel/PetArea
 @onready var close_button: Button = $Panel/CloseButton
-@onready var ui_panel: Control = $Panel/UIPanel
+@onready var inspiration_btn: Button = $Panel/InspirationButton   ## 家园灵感悬浮入口（取代原右侧菜单）
 @onready var placement_manager: PlacementManager = $PlacementManager
+# ─── 阶段 1：四界面切换框架（步骤 1.3 接线） ───
+@onready var screen_manager: ScreenManager = $ScreenManager   ## 屏幕互斥显隐管理器
+@onready var screens_root: Control = $Screens                 ## 四个可切换屏的容器（覆盖层）
+@onready var tab_bar: SignboardTabBar = $TabBar               ## 底部招牌导航栏
 
 # 电话摆件引用（运行期实例化，见 _instance_phone）
 var _phone: Control = null
@@ -58,9 +62,7 @@ func _ready() -> void:
 	_configure_window()
 	_schedule_first_spawn()
 	_schedule_first_pet()
-	ui_panel.wardrobe_requested.connect(_open_wardrobe)
-	ui_panel.inspiration_requested.connect(_open_inspiration)
-	ui_panel.warehouse_requested.connect(_open_warehouse)
+	inspiration_btn.pressed.connect(_open_inspiration)   ## 换装/仓库已并入切屏，仅灵感保留家园悬浮入口
 	_ensure_product_pool()
 	for p in product_pool:
 		GameManager.register_item(p)
@@ -71,14 +73,17 @@ func _ready() -> void:
 	GameManager.seed_starter_clothing(clothes_pool)
 	_instance_phone()
 	placement_manager.init(product_pool, $Panel/PlacedItems)
+	_setup_screens()
 
 
 ## 每帧把「是否有覆盖层弹窗打开」同步给 GameManager，供顾客/宠物/电话/摆放物
 ## 在 _input 阶段自我屏蔽（弹窗开着时不抢占点击，避免吃掉弹窗按钮的点击）。
 func _process(_delta: float) -> void:
 	GameManager.set_modal_open(
-		_has_catalog() or _has_phone_panel() or _has_warehouse()
-		or _has_wardrobe() or _has_inspiration()
+		_has_catalog() or _has_phone_panel()
+		or _has_inspiration()
+		or _has_warehouse()
+		or _has_active_screen()
 	)
 
 
@@ -101,8 +106,17 @@ func _input(event: InputEvent) -> void:
 			# 关闭按钮区域：交给按钮自身的 pressed 处理，不拖拽
 			if _on_close_button(mp):
 				return
-			# UI 侧边面板区域：交互由面板内部处理，不拖窗口
-			if _on_ui_panel(mp):
+			# 灵感悬浮入口：交给按钮 GUI 处理，不拖窗口
+			if _on_inspiration_button(mp):
+				return
+			# 底部招牌区域：交给按钮 GUI 处理切屏（家园态点招牌也不拖窗口）
+			if tab_bar != null and tab_bar.contains_button_point(mp):
+				return
+			# 仓库全局浮层已打开时：点击交由浮层自身处理，不拖窗口
+			if _has_warehouse():
+				return
+			# 有活动屏时：屏为覆盖层，点击交由屏自身处理，不拖窗口
+			if _has_active_screen():
 				return
 			# 点中宠物：宠物自身 _input 已消费（拖动/轻点红心），此处不拖窗口
 			if _pet_at_point(mp) != null:
@@ -122,12 +136,6 @@ func _input(event: InputEvent) -> void:
 			# 订单中心已打开时，不响应空白拖拽
 			if _has_phone_panel():
 				return
-			# 仓库已打开时
-			if _has_warehouse():
-				return
-			# 换装场景已打开时，不响应空白拖拽（换装场景覆盖全窗口处理自身交互）
-			if _has_wardrobe():
-				return
 			# 灵感面板已打开时，不响应空白拖拽
 			if _has_inspiration():
 				return
@@ -145,14 +153,10 @@ func _on_close_button(pos: Vector2) -> bool:
 	return close_button.get_global_rect().has_point(pos)
 
 
-## 点击位置是否落在 UI 侧边面板区域内
-func _on_ui_panel(pos: Vector2) -> bool:
-	return ui_panel.get_global_rect().has_point(pos)
-
-
-## 换装场景是否已打开（作为 Main 子节点覆盖全窗口）
-func _has_wardrobe() -> bool:
-	return has_node("Wardrobe")
+## 点击位置是否落在灵感悬浮入口按钮内（仅按钮可见时生效）
+func _on_inspiration_button(pos: Vector2) -> bool:
+	return inspiration_btn != null and inspiration_btn.visible \
+		and inspiration_btn.get_global_rect().has_point(pos)
 
 
 ## 灵感面板是否已打开（作为 Main 子节点覆盖全窗口）
@@ -170,9 +174,10 @@ func _has_phone_panel() -> bool:
 	return has_node("PhonePanel")
 
 
-## 仓库弹窗是否已打开
-func _has_warehouse() -> bool:
-	return has_node("WarehousePanel")
+## 是否有覆盖屏处于激活态（种植/换装/工坊）。家园态（home）不算，不阻断家园拖拽。
+func _has_active_screen() -> bool:
+	return screen_manager != null and screen_manager.current_screen != "" \
+		and screen_manager.current_screen != "home"
 
 
 ## 遍历 PlayArea 子节点，调用各自的 contains_point 进行命中判定
@@ -278,18 +283,6 @@ func _spawn_pet() -> void:
 	_spawn_pet()
 
 
-# ═══════════════════ 阶段 2：换装场景入口 ═══════════════════
-
-## 实例化换装场景作为覆盖层，传入衣服资源池
-func _open_wardrobe() -> void:
-	if _has_wardrobe():
-		return
-	var scene := preload("res://scenes/wardrobe.tscn")
-	var wardrobe: Control = scene.instantiate()
-	wardrobe.clothes_pool = clothes_pool
-	add_child(wardrobe)
-
-
 # ═══════════════════ 阶段 3：灵感面板入口 ═══════════════════
 
 ## 实例化灵感面板作为覆盖层，传入活动资源池；完成时通过信号回传 Main 编排
@@ -373,17 +366,6 @@ func _open_catalog() -> void:
 	add_child(panel)
 
 
-## 实例化仓库弹窗（覆盖层）
-func _open_warehouse() -> void:
-	if _has_warehouse():
-		return
-	var scene := preload("res://scenes/warehouse_panel.tscn")
-	var panel: Control = scene.instantiate()
-	panel.product_pool = product_pool
-	panel.placement_requested.connect(_on_placement_requested)
-	add_child(panel)
-
-
 ## 遍历 PlacedItems 子节点，调用各自的 contains_point 进行命中判定
 func _placed_at_point(global_pos: Vector2) -> Node2D:
 	var container: Node2D = $Panel/PlacedItems
@@ -399,3 +381,116 @@ func _placed_at_point(global_pos: Vector2) -> Node2D:
 func _on_placement_requested(data: ProductData) -> void:
 	if placement_manager != null:
 		placement_manager.spawn_from_product(data)
+
+
+# ═══════════════════ 阶段 1：四界面切换框架接线（步骤 1.3） ═══════════════════
+## 编排职责：实例化/注册 4 个屏幕（本步为占位空屏，阶段 2 换真内容）、
+## 把底部 TabBar 与 ScreenManager 互联。切屏互斥逻辑在 ScreenManager，
+## 招牌点击/高亮在 TabBar，本处只做「接线」，符合低耦合 + SRP。
+
+## 可切换屏定义：家园是独立第 4 个对等 tab（由 ScreenManager.go_home 处理，不在此注册），
+## 仓库是全局浮层（不在此注册）。此处仅 3 个覆盖屏：换装/种植/工坊。
+## id 与 ScreenManager.SCREEN_* / TabBar.TABS 对齐，顺序即箭头循环顺序。
+const _SCREEN_DEFS := [
+	{"id": "wardrobe", "title": "换装屏"},
+	{"id": "farm", "title": "种植屏（占位·阶段2填充）"},
+	{"id": "workshop", "title": "工坊屏（占位·阶段2填充）"},
+]
+
+
+## 生成 3 个覆盖屏并注册进 ScreenManager，接通 TabBar 双向信号，初始高亮「家园」。
+## 家园与仓库不在此注册：家园由 ScreenManager.go_home() 处理（第 4 个对等 tab），
+## 仓库是全局浮层，由 _toggle_warehouse_global() 管理。
+func _setup_screens() -> void:
+	for def in _SCREEN_DEFS:
+		var scr: Control
+		match def["id"]:
+			"wardrobe":
+				scr = _make_wardrobe_screen()      ## 换装屏 = 复用换装场景（原右侧菜单「换装」并入）
+			_:
+				scr = _make_placeholder_screen(def["title"])  ## 种植/工坊：阶段 2.3/2.4 前占位
+		scr.name = "Screen_" + def["id"]
+		screens_root.add_child(scr)
+		screen_manager.register_screen(def["id"], scr)   ## 注册即隐藏
+	# TabBar 点击 → 切屏/开全局浮层
+	tab_bar.tab_selected.connect(_on_tab_selected)
+	# 屏变化 → 回灌 TabBar 高亮（home/farm/wardrobe/workshop）
+	screen_manager.screen_changed.connect(tab_bar.set_active)
+	# 初始进入家园态并高亮「家园」tab
+	screen_manager.go_home()
+
+
+## 换装屏：实例化换装场景作为常驻切屏内容。
+## 隐藏其自带 CloseButton（切屏开合改由底部招牌 toggle 控制）；
+## 传入衣服资源池；可见时自刷新由 wardrobe.gd 的 visibility_changed 负责。
+func _make_wardrobe_screen() -> Control:
+	var scene := preload("res://scenes/wardrobe.tscn")
+	var w: Control = scene.instantiate()
+	w.clothes_pool = clothes_pool
+	var close_btn := w.get_node_or_null("CloseButton") as CanvasItem
+	if close_btn != null:
+		close_btn.hide()
+	return w
+
+
+## 仓库 = 全局浮层（非切换屏）：任意屏激活时都能打开，不占用 tab 切换位。
+## 实例挂到 Screens 容器内（绘制序在 TabBar 之下），故招牌栏始终可点、可再点收起。
+## 其内部 × 关闭会 queue_free，tree_exited 时清空引用以便再次打开。
+var _warehouse_panel: Control = null
+
+func _toggle_warehouse_global() -> void:
+	if _has_warehouse():
+		_warehouse_panel.queue_free()      ## × 按钮也会 queue_free，tree_exited 兜底清空
+	else:
+		_open_warehouse_global()
+
+
+func _open_warehouse_global() -> void:
+	if _has_warehouse():
+		return
+	var scene := preload("res://scenes/warehouse_panel.tscn")
+	var panel: Control = scene.instantiate()
+	panel.product_pool = product_pool
+	panel.placement_requested.connect(_on_placement_requested)
+	screens_root.add_child(panel)          ## 置于 Screens 容器内 → 绘制在 TabBar 之下
+	panel.tree_exited.connect(_on_warehouse_exited)
+	_warehouse_panel = panel
+
+
+func _has_warehouse() -> bool:
+	return _warehouse_panel != null and is_instance_valid(_warehouse_panel)
+
+
+func _on_warehouse_exited() -> void:
+	_warehouse_panel = null
+
+
+## 构建一个占位屏（覆盖家园中央区、让出底部招牌栏）。阶段 2 会用真实屏替换。
+func _make_placeholder_screen(title: String) -> Control:
+	var root := Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_STOP   ## 覆盖层拦截点击，不穿透到家园
+	var bg := ColorRect.new()
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.offset_bottom = -52.0                          ## 让出底部 52px 招牌栏
+	bg.color = Color(0.16, 0.13, 0.11, 0.94)
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.add_child(bg)
+	var label := Label.new()
+	label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	label.offset_bottom = -52.0
+	label.text = title
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.add_theme_color_override("font_color", Color(0.95, 0.92, 0.88))
+	root.add_child(label)
+	return root
+
+
+## 底部招牌点击：仓库→开/关全局浮层；其余→toggle 对应屏（再点当前屏则收起回家园）
+func _on_tab_selected(id: String) -> void:
+	if id == "warehouse":
+		_toggle_warehouse_global()
+	else:
+		screen_manager.toggle_screen(id)
