@@ -64,6 +64,11 @@ func _ready() -> void:
 	_ensure_product_pool()
 	for p in product_pool:
 		GameManager.register_item(p)
+	# 阶段 0.4：注册服装到统一库存注册表，并一次性播种初始衣橱（每款各 1 件）
+	_ensure_clothes_pool()
+	for c in clothes_pool:
+		GameManager.register_item(c)
+	GameManager.seed_starter_clothing(clothes_pool)
 	_instance_phone()
 	placement_manager.init(product_pool, $Panel/PlacedItems)
 
@@ -312,6 +317,20 @@ func _ensure_product_pool() -> void:
 		var res = load(path)
 		if res != null:
 			product_pool.append(res)
+
+
+## 数据驱动回退：未拖入任何 .tres 时，自动加载内置五款服装（供注册/播种/换装用）
+func _ensure_clothes_pool() -> void:
+	if not clothes_pool.is_empty():
+		return
+	for path in [
+		"res://data/clothes_hat.tres", "res://data/clothes_shirt.tres",
+		"res://data/clothes_skirt.tres", "res://data/clothes_shoe.tres",
+		"res://data/clothes_gt.tres",
+	]:
+		var res = load(path)
+		if res != null:
+			clothes_pool.append(res)
 
 
 ## 实例化桌面电话摆件，挂到 Panel 下，连接点击信号

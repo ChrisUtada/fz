@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="ItemData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item_data.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+id = "rose"
+display_name = "玫瑰"
+description = "采摘得到的鲜切玫瑰，可在工坊分解"
+category = 2
+price = 0
+decompose_recipe = [{"item_id": "red_dye", "count": 1}, {"item_id": "fiber", "count": 2}]

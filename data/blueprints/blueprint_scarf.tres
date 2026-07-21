@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="BlueprintData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/blueprint_data.gd" id="1_bp"]
+
+[resource]
+script = ExtResource("1_bp")
+id = "scarf_bp"
+display_name = "围巾蓝图"
+description = "消耗红染料与纤维，制作一条围巾"
+unlock_inspiration = 20
+required_materials = [{"item_id": "red_dye", "count": 1}, {"item_id": "fiber", "count": 2}]
+output_id = "scarf"
+output_count = 1

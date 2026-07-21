@@ -18,16 +18,17 @@ extends Control
 ## 交互：
 ##   拖入背包格子 → 装备（同部位自动替换）
 ##   轻点已装备部位 → 脱下（按绘制层级从上往下命中检测）
-##   装备/脱下自动存档到 user://wardrobe.cfg，下次打开还原
+##
+## 阶段 0.4：服装并入统一 inventory。
+##   - 背包只展示「已拥有」服装（GameManager.get_by_category(CLOTHING)）
+##   - 穿搭状态存于 GameManager.equipped（slot -> item_id），本场景不再自持久化；
+##     打开时从 GameManager 还原，装备/脱下即时同步给 GameManager 存档。
 
-const SAVE_PATH := "user://wardrobe.cfg"
 const ITEM_SLOT_SCENE := preload("res://scenes/clothes/item_slot.tscn")
 
-## 衣服数据池（@export，编辑器拖入 .tres 即用）
+## 衣服数据池（@export，编辑器拖入 .tres 即用）；作为回退/兜底，主数据源是统一 inventory
 @export var clothes_pool: Array[ClothesData] = []
 
-## 当前各部位装备状态（slot -> ClothesData）
-var _equipped: Dictionary = {}
 ## 已装备贴图的内容包围盒缓存（Texture -> Rect2，纹理像素空间），用于精准命中检测
 var _content_rect_cache: Dictionary = {}
 
@@ -52,13 +53,30 @@ func _ready() -> void:
 
 # ═══════════════════ 背包生成 ═══════════════════
 
+## 背包 = 已拥有的服装（统一 inventory 的 CLOTHING 分类）。
+## 每个拥有的 id 展示一个格子；元数据经注册表解析回 ClothesData 取贴图。
 func _populate_backpack() -> void:
 	for child in _grid_container.get_children():
 		child.queue_free()
-	for item_data in clothes_pool:
+	for item_data in _owned_clothes():
 		var slot: TextureButton = ITEM_SLOT_SCENE.instantiate()
 		slot.setup(item_data)
 		_grid_container.add_child(slot)
+
+
+## 返回当前拥有的服装 ClothesData 列表（优先读统一 inventory；空时回退 clothes_pool）
+func _owned_clothes() -> Array:
+	var out: Array = []
+	for entry in GameManager.get_by_category(ItemData.Category.CLOTHING):
+		var d = entry["data"]
+		if d is ClothesData:
+			out.append(d)
+	if out.is_empty():
+		# 兜底：inventory 尚无服装（异常/首启未播种）时退回设计池，保证换装可用
+		for c in clothes_pool:
+			if c != null:
+				out.append(c)
+	return out
 
 
 # ═══════════════════ 装备逻辑 ═══════════════════
@@ -69,14 +87,14 @@ func _on_clothes_dropped(data: ClothesData) -> void:
 
 
 ## 执行装备：找到对应部位的 Sprite2D 层，仅设 texture（共享原点架构无需 offset）
+## 穿搭状态同步给 GameManager.equipped（自持久化）；所有权不变（仍在 inventory）。
 func _equip(data: ClothesData) -> void:
 	var layer: Sprite2D = _get_layer_for_slot(data.slot)
 	if layer == null:
 		return
 	layer.texture = data.texture
 	layer.visible = true
-	_equipped[data.slot] = data
-	_save_outfit()
+	GameManager.equip(data.slot, data.id)
 
 
 ## 脱下指定部位的衣服
@@ -85,8 +103,7 @@ func _unequip(slot: int) -> void:
 	if layer != null:
 		layer.texture = null
 		layer.visible = false
-		_equipped.erase(slot)
-		_save_outfit()
+		GameManager.unequip(slot)
 
 
 ## 轻点请求脱下：从最上层（绘制顺序最后）往下找被点中的已装备层
@@ -163,35 +180,19 @@ func _compute_content_rect(tex: Texture2D) -> Rect2:
 	return img.get_used_rect()
 
 
-## 持久化当前装备：把每个部位的 ClothesData 资源路径写入 ConfigFile
-func _save_outfit() -> void:
-	var cfg := ConfigFile.new()
-	for slot in _equipped.keys():
-		var data: ClothesData = _equipped[slot]
-		if data != null and not data.resource_path.is_empty():
-			cfg.set_value("equipped", str(slot), data.resource_path)
-	cfg.save(SAVE_PATH)
-
-
-## 还原存档：读取 ConfigFile，按部位重新套上对应衣物
+## 还原穿搭：从 GameManager.equipped（slot -> item_id）读取，
+## 经注册表把 id 解析回 ClothesData，套上对应部位的贴图。
 func _load_outfit() -> void:
-	var cfg := ConfigFile.new()
-	if cfg.load(SAVE_PATH) != OK:
-		return
-	for slot_str in cfg.get_section_keys("equipped"):
-		var slot := int(slot_str)
-		var path: String = cfg.get_value("equipped", slot_str, "")
-		if path.is_empty() or not ResourceLoader.exists(path):
-			continue
-		var data := load(path) as ClothesData
+	for slot in GameManager.equipped.keys():
+		var item_id: String = GameManager.equipped[slot]
+		var data := GameManager.get_item(item_id) as ClothesData
 		if data == null:
 			continue
-		var layer: Sprite2D = _get_layer_for_slot(slot)
+		var layer: Sprite2D = _get_layer_for_slot(int(slot))
 		if layer == null:
 			continue
 		layer.texture = data.texture
 		layer.visible = true
-		_equipped[slot] = data
 
 
 func _on_close() -> void:

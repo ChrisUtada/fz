@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="ItemData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item_data.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+id = "fiber"
+display_name = "纤维"
+description = "从作物分解得到的植物纤维，用于制作"
+category = 3
+price = 0
+decompose_recipe = []
