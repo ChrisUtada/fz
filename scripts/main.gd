@@ -46,7 +46,7 @@ var _drag_offset := Vector2i.ZERO
 # 节点引用 —— 通过 @onready 注入，不硬编码路径搜索
 @onready var play_area: Node2D = $Panel/PlayArea
 @onready var pet_area: Node2D = $Panel/PetArea
-@onready var close_button: Button = $Panel/CloseButton
+@onready var close_button: Button = $CloseButton
 @onready var inspiration_btn: Button = $Panel/InspirationButton   ## 家园灵感悬浮入口（取代原右侧菜单）
 @onready var placement_manager: PlacementManager = $PlacementManager
 # ─── 阶段 1：四界面切换框架（步骤 1.3 接线） ───
@@ -122,6 +122,9 @@ func _input(event: InputEvent) -> void:
 				return
 			# 底部招牌区域：交给按钮 GUI 处理切屏（家园态点招牌也不拖窗口）
 			if tab_bar != null and tab_bar.contains_button_point(mp):
+				return
+			# 活动面板左右箭头按钮：交给按钮 GUI 处理切屏，不拖窗口（箭头仅在四对等屏可见）
+			if _arrow_nav != null and _arrow_nav.contains_button_point(mp):
 				return
 			# 仓库全局浮层已打开时：点击交由浮层自身处理，不拖窗口
 			if _has_warehouse():
@@ -399,20 +402,26 @@ func _on_placement_requested(data: ProductData) -> void:
 ## 把底部 TabBar 与 ScreenManager 互联。切屏互斥逻辑在 ScreenManager，
 ## 招牌点击/高亮在 TabBar，本处只做「接线」，符合低耦合 + SRP。
 
-## 可切换屏定义：家园是独立第 4 个对等 tab（由 ScreenManager.go_home 处理，不在此注册），
-## 仓库是全局浮层（不在此注册）。此处仅 3 个覆盖屏：换装/种植/工坊。
-## id 与 ScreenManager.SCREEN_* / TabBar.TABS 对齐，顺序即箭头循环顺序。
+## 可切换屏定义：家园/种植/换装/工坊为四个对等主 tab，均注册进 ScreenManager
+## （见 _setup_screens：先注册 home=$Panel，再注册本数组的 3 个屏）。
+## 仓库是全局浮层（不在此注册）。此处为除 home 外的 3 个屏：种植/换装/工坊，
+## 顺序与 TabBar.TABS（家园→种植→换装→工坊）对齐；home 注册在最前，故箭头循环 = [home, farm, wardrobe, workshop]。
 const _SCREEN_DEFS := [
-	{"id": "wardrobe", "title": "换装屏"},
 	{"id": "farm", "title": "种植屏（占位·阶段2填充）"},
+	{"id": "wardrobe", "title": "换装屏"},
 	{"id": "workshop", "title": "工坊屏（占位·阶段2填充）"},
 ]
 
 
-## 生成 3 个覆盖屏并注册进 ScreenManager，接通 TabBar 双向信号，初始高亮「家园」。
-## 家园与仓库不在此注册：家园由 ScreenManager.go_home() 处理（第 4 个对等 tab），
-## 仓库是全局浮层，由 _toggle_warehouse_global() 管理。
+## 生成 4 个对等屏并注册进 ScreenManager，接通 TabBar 双向信号，初始高亮「家园」。
+## 四个屏地位完全对等、互斥显隐（并列，而非“家园为底、其余覆盖”）：
+##   ① 先注册 home（即 $Panel——家园专属内容：摆放物/顾客/宠物/灵感按钮/HUD 等，切屏时整体隐藏）；
+##      CloseButton 单独上提至 Main 常驻（绘制序置顶，任意屏可关闭）。
+##   ② 再注册种植/换装/工坊。注册顺序即箭头循环顺序 → [home, farm, wardrobe, workshop]，与 TabBar.TABS 一致。
+## 仓库是全局浮层，由 _toggle_warehouse_global() 管理，不在此注册。
 func _setup_screens() -> void:
+	# ① 家园屏 = $Panel（家园专属内容容器），与其余三屏对等；注册即隐藏，结尾 go_home() 再显示
+	screen_manager.register_screen(ScreenManager.SCREEN_HOME, $Panel)
 	for def in _SCREEN_DEFS:
 		var scr: Control
 		match def["id"]:
