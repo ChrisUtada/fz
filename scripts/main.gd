@@ -103,8 +103,8 @@ func _input(event: InputEvent) -> void:
 			# 产品目录已打开时，不响应空白拖拽（覆盖层处理自身交互）
 			if _has_catalog():
 				return
-			# 收货清单已打开时
-			if _has_receipt():
+			# 订单中心已打开时，不响应空白拖拽
+			if _has_phone_panel():
 				return
 			# 仓库已打开时
 			if _has_warehouse():
@@ -149,9 +149,9 @@ func _has_catalog() -> bool:
 	return has_node("ProductCatalog")
 
 
-## 收货清单弹窗是否已打开
-func _has_receipt() -> bool:
-	return has_node("ReceiptPanel")
+## 订单中心弹窗是否已打开
+func _has_phone_panel() -> bool:
+	return has_node("PhonePanel")
 
 
 ## 仓库弹窗是否已打开
@@ -312,12 +312,25 @@ func _instance_phone() -> void:
 	phone.phone_pressed.connect(_on_phone_pressed)
 
 
-## 电话点击：有到货 → 打开收货清单；否则 → 打开产品目录
+## 电话点击：双击 → 打开订单中心（进行中订单 + 已到货 + 去商城）
 func _on_phone_pressed() -> void:
-	if GameManager.has_arrived():
-		_open_receipt()
-	else:
-		_open_catalog()
+	_open_phone_panel()
+
+
+## 实例化订单中心弹窗（覆盖层，双击电话打开）
+func _open_phone_panel() -> void:
+	if _has_phone_panel():
+		return
+	var scene := preload("res://scenes/phone_panel.tscn")
+	var panel: Control = scene.instantiate()
+	panel.product_pool = product_pool
+	panel.shop_requested.connect(_on_phone_shop_requested)
+	add_child(panel)
+
+
+## 订单中心「去商城」→ 打开产品目录（订单中心留在下层，关闭目录后仍在）
+func _on_phone_shop_requested() -> void:
+	_open_catalog()
 
 
 ## 实例化产品目录弹窗（覆盖层）
@@ -325,16 +338,6 @@ func _open_catalog() -> void:
 	if _has_catalog():
 		return
 	var scene := preload("res://scenes/product_catalog.tscn")
-	var panel: Control = scene.instantiate()
-	panel.product_pool = product_pool
-	add_child(panel)
-
-
-## 实例化收货清单弹窗（覆盖层）
-func _open_receipt() -> void:
-	if _has_receipt():
-		return
-	var scene := preload("res://scenes/receipt_panel.tscn")
 	var panel: Control = scene.instantiate()
 	panel.product_pool = product_pool
 	add_child(panel)

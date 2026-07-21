@@ -1,25 +1,33 @@
 extends Control
-## Phone · 桌面电话摆件
+## Phone · 桌面电话摆件（精简版）
 ##
-## 桌面常驻物件（挂在 Main 的 Panel 下）。职责：
-##   - 显示所有进行中订单：每条 = 物品名 + 进度条 + 剩余 MM:SS
-##   - 有到货时底部高亮「已到货 N 件，点击领取」
-##   - 点击 → emit phone_pressed（由 Main 编排：有到货开收货清单，否则开产品目录）
+## 桌面常驻物件（挂在 Main 的 Panel 下）。职责缩为两项：
+##   - 显示「已到货 N 件 · 双击查看」提醒（有到货时）
+##   - 「双击」左键 = 打开订单中心（emit phone_pressed，由 Main 编排）
+##   进行中订单的进度条/倒计时已移入订单中心弹窗（phone_panel）。
 ##
-## 计时由 GameManager 持有（墙钟 + 存档，离线到货），本摆件只负责显示。
+## 计时与订单数据由 GameManager 持有（墙钟 + 存档，离线到货），本摆件只负责显示。
 ## 实现 contains_point 供 Main 的拖窗口守卫使用（点击电话不拖窗口）。
+## 交互：在电话上「按下并拖动」= 移动位置（松手存档）；「双击」左键 = 打开订单中心。
+##       鼠标过滤由 _input + contains_point 自判命中，与顾客/宠物一致，不依赖子节点
+##       mouse_filter。
 
 signal phone_pressed()
 
-@onready var _orders_box: VBoxContainer = $OrdersBox
+const SAVE_PATH := "user://phone_pos.cfg"
+const DRAG_THRESHOLD := 4.0   ## 像素：移动超过此距离才判定为拖动，否则算点击
+
 @onready var _arrived_label: Label = $ArrivedLabel
 
-## 订单集合签名（id 列表），变化时重建列表，否则只更新进度
-var _order_sig: String = ""
-var _order_rows: Dictionary = {}   # id -> {bar: ProgressBar, time: Label}
+## 拖动状态
+var _pressed := false              ## 鼠标左键此刻是否在电话矩形内按住
+var _dragging := false             ## 已越过阈值、正在拖动中
+var _drag_offset := Vector2.ZERO      ## 按下点与电话原点的偏移，拖动中保持
+var _press_mouse := Vector2.ZERO      ## 按下时鼠标全局坐标，用于判定拖动阈值
 
 func _ready() -> void:
 	_arrived_label.visible = false
+	_load_position()
 
 
 ## 用 _input + contains_point 自判命中（与顾客/宠物一致）：
@@ -27,11 +35,45 @@ func _ready() -> void:
 ## 会在 GUI 阶段抢先消费点击，事件根本到不了 _unhandled_input。
 ## _input 在 GUI 阶段之前触发，不受 mouse_filter 影响；命中后 set_input_as_handled
 ## 阻止事件继续传播（Main._input 因此不会把这次点击误当成窗口拖拽）。
+##
+## 状态机：
+##   press(命中)  → _pressed=true；若 ev.double_click 则打开 UI
+##   motion(_pressed) → 用「鼠标位移」越过阈值即置 _dragging，随后跟随鼠标移动位置
+##   release      → 若 _dragging 则存档；清空 _pressed/_dragging
+## 关键陷阱：阈值判定必须基于「鼠标位移」，不能用 global_position（电话自身位置）——
+## 电话只在 _dragging==true 时才移动，若阈值用电话位移判定会陷入「要动才标记动」的
+## 死锁，永远动不了。同理，set_input_as_handled 只在确实命中电话时调用，否则会吞掉
+## 全局 release 事件导致其它弹窗按钮（需 press+release）全部点不动。
 func _input(ev: InputEvent) -> void:
-	if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT and ev.pressed:
-		if contains_point(get_global_mouse_position()):
-			phone_pressed.emit()
-			get_viewport().set_input_as_handled()
+	if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT:
+		if ev.pressed:
+			if contains_point(get_global_mouse_position()):
+				var m := get_global_mouse_position()
+				_pressed = true
+				_dragging = false
+				_press_mouse = m
+				_drag_offset = global_position - m
+				# 双击左键 = 打开订单中心（emit 后让 Main 编排）
+				if ev.double_click:
+					phone_pressed.emit()
+				get_viewport().set_input_as_handled()
+		else:
+			# 松开：仅当这次确实是一次电话按下（_pressed）时才处理+消费事件，
+			# 否则不要 set_input_as_handled——否则会吞掉弹窗按钮所需的 release。
+			if _pressed:
+				if _dragging:
+					_save_position()
+				_pressed = false
+				_dragging = false
+				get_viewport().set_input_as_handled()
+	elif ev is InputEventMouseMotion and _pressed:
+		# 阈值判定用鼠标位移（_press_mouse），不能用电话自身 global_position——
+		# 后者只在已拖动时才变化，会形成死锁。
+		if get_global_mouse_position().distance_to(_press_mouse) >= DRAG_THRESHOLD:
+			_dragging = true
+		if _dragging:
+			global_position = get_global_mouse_position() + _drag_offset
+		get_viewport().set_input_as_handled()
 
 
 ## 供 Main 拖窗口守卫：点击是否落在电话矩形内
@@ -39,67 +81,35 @@ func contains_point(global_pos: Vector2) -> bool:
 	return get_global_rect().has_point(global_pos)
 
 
+## 读取存档位置（user://phone_pos.cfg）；无存档则保留 .tscn 默认位置
+func _load_position() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(SAVE_PATH) != OK:
+		return
+	var x: float = cfg.get_value("phone", "x", NAN)
+	var y: float = cfg.get_value("phone", "y", NAN)
+	if is_nan(x) or is_nan(y):
+		return
+	global_position = Vector2(x, y)
+
+
+## 保存当前位置到 user://phone_pos.cfg（Godot 全局坐标不随系统窗口拖动变化，稳定）
+func _save_position() -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("phone", "x", global_position.x)
+	cfg.set_value("phone", "y", global_position.y)
+	cfg.save(SAVE_PATH)
+
+
 func _process(_delta: float) -> void:
 	_refresh()
 
 
+## 仅刷新「已到货」提醒；进度条/倒计时已移入订单中心弹窗。
 func _refresh() -> void:
-	var orders: Array = GameManager.get_orders()
-	var sig := ""
-	for o in orders:
-		sig += str(o["id"]) + ","
-	if sig != _order_sig:
-		_rebuild_orders(orders)
-		_order_sig = sig
-	else:
-		# 仅更新现有行的进度/时间，避免每帧重建闪烁
-		for o in orders:
-			var row = _order_rows.get(o["id"])
-			if row != null:
-				row["bar"].value = o["progress"] * 100.0
-				row["time"].text = _format_time(o["remaining_sec"])
-
 	var count := GameManager.get_arrived().size()
 	if count > 0:
 		_arrived_label.visible = true
-		_arrived_label.text = "已到货 %d 件，点击领取" % count
+		_arrived_label.text = "已到货 %d 件 · 双击查看" % count
 	else:
 		_arrived_label.visible = false
-
-
-func _rebuild_orders(orders: Array) -> void:
-	for child in _orders_box.get_children():
-		child.queue_free()
-	_order_rows.clear()
-	for o in orders:
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 6)
-
-		var name_l := Label.new()
-		name_l.text = o["name"]
-		name_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-		var bar := ProgressBar.new()
-		bar.min_value = 0.0
-		bar.max_value = 100.0
-		bar.value = o["progress"] * 100.0
-		bar.custom_minimum_size = Vector2(56, 0)
-		bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE  # 不截获点击，让 _unhandled_input 处理
-
-		var time_l := Label.new()
-		time_l.text = _format_time(o["remaining_sec"])
-		time_l.custom_minimum_size = Vector2(40, 0)
-
-		row.add_child(name_l)
-		row.add_child(bar)
-		row.add_child(time_l)
-		_orders_box.add_child(row)
-		_order_rows[o["id"]] = {"bar": bar, "time": time_l}
-
-
-func _format_time(total_sec: float) -> String:
-	var s := int(ceil(total_sec))
-	var m := s / 60
-	var sec := s % 60
-	return "%02d:%02d" % [int(m), sec]

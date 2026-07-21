@@ -7,7 +7,7 @@ layout_mode = 0
 offset_left = 24.0
 offset_top = 230.0
 offset_right = 148.0
-offset_bottom = 360.0
+offset_bottom = 300.0
 mouse_filter = 2
 script = ExtResource("1_phone")
 
@@ -29,18 +29,10 @@ offset_right = 116.0
 offset_bottom = 26.0
 text = "电话"
 
-[node name="OrdersBox" type="VBoxContainer" parent="."]
-layout_mode = 0
-offset_left = 8.0
-offset_top = 32.0
-offset_right = 116.0
-offset_bottom = -28.0
-theme_override_constants/separation = 6
-
 [node name="ArrivedLabel" type="Label" parent="."]
 layout_mode = 0
 offset_left = 8.0
 offset_top = -24.0
 offset_right = 116.0
 offset_bottom = -6.0
-text = "已到货 N 件，点击领取"
+text = "已到货 N 件 · 双击查看"

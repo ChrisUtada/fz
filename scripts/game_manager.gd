@@ -260,6 +260,22 @@ func confirm_receipt() -> void:
 	warehouse_changed.emit()
 
 
+## 领取单个到货：解锁进仓库、从待收移除、存档、发信号。供订单中心逐件领取。
+func confirm_receipt_one(id: String) -> void:
+	var idx := -1
+	for i in range(_arrived.size()):
+		if _arrived[i]["id"] == id:
+			idx = i
+			break
+	if idx < 0:
+		return
+	_unlock_internal(_arrived[idx]["id"])
+	_arrived.remove_at(idx)
+	_save_orders()
+	arrived_changed.emit()
+	warehouse_changed.emit()
+
+
 func _tick_orders() -> void:
 	if _orders.is_empty():
 		return
