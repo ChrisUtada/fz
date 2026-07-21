@@ -59,6 +59,9 @@ var _arrow_nav: ArrowNav = null                              ## 步骤 1.5：活
 # 电话摆件引用（运行期实例化，见 _instance_phone）
 var _phone: Control = null
 
+# 服装展架摆件引用（运行期实例化，见 _instance_rack）
+var _rack: Control = null
+
 
 func _ready() -> void:
 	_configure_window()
@@ -71,6 +74,9 @@ func _ready() -> void:
 	# 阶段 0.4：注册服装到统一库存注册表，并一次性播种初始衣橱（每款各 1 件）
 	_ensure_clothes_pool()
 	for c in clothes_pool:
+		# 服装图标统一落到基类 icon（背包/仓库/展架通用），避免 icon_texture 与 icon 分裂
+		if c != null and c.icon == null and c.icon_texture != null:
+			c.icon = c.icon_texture
 		GameManager.register_item(c)
 	GameManager.seed_starter_clothing(clothes_pool)
 	# 阶段 2.3：注册种子/作物到注册表（农场逻辑据此解析 SeedData），并一次性播种起始种子+花盆
@@ -89,6 +95,7 @@ func _ready() -> void:
 	if GameManager.inspiration_total_earned < 20:
 		GameManager.add_inspiration(20 - GameManager.inspiration_total_earned)
 	_instance_phone()
+	_instance_rack()
 	placement_manager.init(product_pool, $Panel/PlacedItems)
 	_setup_screens()
 
@@ -100,6 +107,7 @@ func _process(_delta: float) -> void:
 		_has_catalog() or _has_phone_panel()
 		or _has_inspiration()
 		or _has_warehouse()
+		or _has_rack_panel()
 		or _has_active_screen()
 	)
 
@@ -159,6 +167,9 @@ func _input(event: InputEvent) -> void:
 				return
 			# 点中电话摆件：交给电话自身处理点击，不拖窗口
 			if _phone_at_point(mp):
+				return
+			# 点中服装展架摆件：交给展架自身处理点击/拖动，不拖窗口
+			if _rack_at_point(mp):
 				return
 			# 产品目录已打开时，不响应空白拖拽（覆盖层处理自身交互）
 			if _has_catalog():
@@ -260,6 +271,12 @@ func _spawn_customer() -> void:
 	# 将顾客注入 PlayArea —— 依赖注入目标容器
 	play_area.add_child(customer)
 
+	# 阶段 4.5：把展架世界坐标交给顾客，使其走向展架购买
+	if _rack != null and is_instance_valid(_rack):
+		var center := _rack.get_global_rect().get_center()
+		customer.set_rack_target(center)
+		customer.global_position = center + Vector2(randf_range(70.0, 150.0), randf_range(10.0, 70.0))
+
 	# 信号连接：顾客完成 → 编排器处理 → 触发下一个周期
 	customer.order_completed.connect(_on_order_completed)
 
@@ -356,7 +373,7 @@ func _ensure_seed_pool() -> void:
 ## seeds/crops：农场逻辑据此解析 SeedData（阶段 0.9/2.3）。
 ## materials/craft：工坊制作（2.4）的「材料输入」与「成品产出」需经注册表解析名称/分类。
 func _register_item_resources() -> void:
-	for dir in ["res://data/seeds/", "res://data/crops/", "res://data/materials/", "res://data/craft/"]:
+	for dir in ["res://data/seeds/", "res://data/crops/", "res://data/materials/", "res://data/craft/", "res://data/clothes/"]:
 		for path in _list_data_dir(dir):
 			var d = load(path)
 			if d is ItemData:
@@ -409,6 +426,46 @@ func _instance_phone() -> void:
 	$Panel.add_child(phone)
 	_phone = phone
 	phone.phone_pressed.connect(_on_phone_pressed)
+
+
+## 实例化桌面服装展架摆件（阶段 4.2），挂到 Panel 下，连接打开上架面板信号
+func _instance_rack() -> void:
+	var scene := preload("res://scenes/clothing_rack.tscn")
+	var rack: Control = scene.instantiate()
+	$Panel.add_child(rack)
+	_rack = rack
+	rack.rack_opened.connect(_on_rack_opened)
+
+
+## 展架摆件点击 → 打开上架面板
+func _on_rack_opened() -> void:
+	_open_rack_panel()
+
+
+## 实例化上架面板（覆盖层，轻点展架打开）
+func _open_rack_panel() -> void:
+	if _has_rack_panel():
+		return
+	var scene := preload("res://scenes/rack_panel.tscn")
+	var panel: Control = scene.instantiate()
+	add_child(panel)
+	panel.tree_exited.connect(_on_rack_exited)
+	_rack_panel = panel
+
+
+func _has_rack_panel() -> bool:
+	return _rack_panel != null and is_instance_valid(_rack_panel)
+
+
+func _on_rack_exited() -> void:
+	_rack_panel = null
+
+
+## 展架摆件是否被点中（ClothingRack 实现 contains_point）
+func _rack_at_point(global_pos: Vector2) -> bool:
+	if _rack == null or not _rack.has_method("contains_point"):
+		return false
+	return _rack.contains_point(global_pos)
 
 
 ## 电话点击：双击 → 打开订单中心（进行中订单 + 已到货 + 去商城）
@@ -542,6 +599,9 @@ func _make_workshop_screen() -> Control:
 ## 实例挂到 Screens 容器内（绘制序在 TabBar 之下），故招牌栏始终可点、可再点收起。
 ## 其内部 × 关闭会 queue_free，tree_exited 时清空引用以便再次打开。
 var _warehouse_panel: Control = null
+
+# 上架面板（展架）引用（运行期实例化，见 _open_rack_panel）
+var _rack_panel: Control = null
 
 func _toggle_warehouse_global() -> void:
 	if _has_warehouse():

@@ -6,6 +6,13 @@ extends Node
 
 const SAVE_PATH := "user://placements.cfg"
 
+## 桌面装饰花盆限量（阶段 4.6）：花盆除在种植屏功能槽外，还可经仓库摆桌面作装饰，
+## 但数量限量，避免纯装饰盆铺满桌面。功能盆（种植屏 6 槽）不计入此限。
+const DESKTOP_POT_LIMIT := 3
+const POT_ID := "pot"                  ## 与 data/product_pot.tres 的 id 对齐
+
+signal placement_rejected(reason: String)
+
 var _container: Node2D
 var _data_by_id: Dictionary = {}      # id -> ProductData
 var _pool_ready := false
@@ -28,6 +35,16 @@ func spawn_from_product(data: ProductData) -> void:
 	if data == null or data.placeable_scene == null:
 		push_warning("PlacementManager.spawn_from_product: 数据或 placeable_scene 缺失，无法摆放 %s" % (data.id if data != null else "null"))
 		return
+	# 装饰花盆限量（阶段 4.6）：仅统计已摆到桌面的花盆，功能盆（种植屏槽）不计入
+	if data.id == POT_ID:
+		var count := 0
+		for c in _container.get_children():
+			if c is Placeable and c.data != null and c.data.id == POT_ID:
+				count += 1
+		if count >= DESKTOP_POT_LIMIT:
+			push_warning("PlacementManager: 装饰花盆已达上限（%d），本次摆放被忽略" % DESKTOP_POT_LIMIT)
+			placement_rejected.emit("装饰花盆已达上限（%d）" % DESKTOP_POT_LIMIT)
+			return
 	var inst: Placeable = data.placeable_scene.instantiate()
 	if inst == null:
 		return
