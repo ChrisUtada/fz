@@ -14,6 +14,7 @@ extends ItemData
 
 @export var delivery_minutes: int = 5              ## 配送时长（分钟），墙钟计时
 @export var base_scale: float = 1.0               ## 摆放时的基础缩放
+@export var garden_placement: bool = false        ## 仅花园放置（非家园桌面）。花盆等未来设 true；默认 false 不影响现有桌面摆放
 
 func _init() -> void:
 	category = ItemData.Category.PLACEABLE

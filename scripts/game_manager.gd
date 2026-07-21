@@ -29,6 +29,8 @@ const INVENTORY_SAVE_PATH := "user://inventory.cfg"
 var inventory: Dictionary = {}       # id -> count(int)
 var _item_registry: Dictionary = {}  # id -> ItemData（运行时注册，非存档；按 id 解析元数据）
 var _clothing_seeded: bool = false   # 首次运行是否已播种初始衣橱（防止售出后又被刷回来）
+var _farm_seeded: bool = false        # 首次运行是否已播种起始种子+花盆（阶段 2.3）
+var _workshop_seeded: bool = false     # 首次运行是否已发放初始工坊材料（阶段 2.4）
 
 # ─── 穿搭（equipped，与所有权分离；换装屏当前穿在身上的衣服） ───
 ## equipped: slot(int) -> item_id(String)。所有权在 inventory[CLOTHING]，穿搭独立于此。
@@ -262,17 +264,22 @@ func _delete_activity_save() -> void:
 # ═══════════════════ 电话订单（多订单并行 + 墙钟 + 存档） ═══════════════════
 
 ## 下单：校验金币 → 扣款 → 记录进行中订单（墙钟时间戳）→ 立即存档。返回是否成功。
-func start_order(product: ProductData) -> bool:
+## 下单：扣金币、建订单（按配送时长墙钟计时）。接收任意 ItemData（ProductData 走商品配送时长，
+## SeedData 等无 delivery_minutes 的用默认 5 分钟），到货后 confirm_receipt 按 id 入库。
+func start_order(product: ItemData) -> bool:
 	if product == null:
 		return false
 	if gold < product.price:
 		return false
 	subtract_gold(product.price)
+	var duration_sec: float = 5.0 * 60.0          # 默认配送时长（适用于种子等无 delivery_minutes 的物品）
+	if product is ProductData:
+		duration_sec = float(product.delivery_minutes) * 60.0
 	var order := {
 		"id": product.id,
 		"name": product.display_name,
 		"start_unix": int(Time.get_unix_time_from_system()),
-		"duration_sec": float(product.delivery_minutes) * 60.0
+		"duration_sec": duration_sec
 	}
 	_orders.append(order)
 	_save_orders()
@@ -437,6 +444,44 @@ func decompose(item_id: String) -> bool:
 	return true
 
 
+## 制作：消耗蓝图所需材料，产出 output_id×output_count 进库存（按 output 的 category 归类）。
+## 前置：蓝图已注册 + 已解锁 + 材料齐。三项任一不满足即返回 false（不改动库存）。
+## 成功时 add_item/remove_item 各自发 inventory_changed（工坊 UI 即时刷新）。
+func craft(blueprint_id: String) -> bool:
+	var bp: BlueprintData = get_blueprint(blueprint_id)
+	if bp == null:
+		return false
+	if not unlocked_blueprints.has(blueprint_id):
+		return false
+	# 先校验材料齐（不足则不动库存直接返回）
+	for e in bp.required_materials:
+		if not e is Dictionary:
+			continue
+		var norm := {}
+		for k in e.keys():
+			norm[str(k)] = e[k]
+		var iid: String = str(norm.get("item_id", ""))
+		var n: int = int(norm.get("count", 0))
+		if iid.is_empty() or n <= 0:
+			continue
+		if get_count(iid) < n:
+			return false
+	# 扣材料
+	for e in bp.required_materials:
+		if not e is Dictionary:
+			continue
+		var norm := {}
+		for k in e.keys():
+			norm[str(k)] = e[k]
+		var iid: String = str(norm.get("item_id", ""))
+		var n: int = int(norm.get("count", 0))
+		if not iid.is_empty() and n > 0:
+			remove_item(iid, n)
+	# 产出
+	add_item(bp.output_id, bp.output_count)
+	return true
+
+
 ## 返回背包内所有"可分解"物品 [{data, count}]（decompose_recipe 非空且持有>0）。
 ## 供工坊「分解」子页（阶段 2.4）列出候选；纯数据层，不依赖 UI。
 func get_decomposables() -> Array:
@@ -472,6 +517,8 @@ func _save_inventory() -> void:
 	for id in inventory.keys():
 		cfg.set_value("items", id, inventory[id])
 	cfg.set_value("meta", "clothing_seeded", _clothing_seeded)
+	cfg.set_value("meta", "farm_seeded", _farm_seeded)
+	cfg.set_value("meta", "workshop_seeded", _workshop_seeded)
 	cfg.save(INVENTORY_SAVE_PATH)
 
 
@@ -482,7 +529,9 @@ func _load_inventory() -> void:
 			var cnt: int = int(cfg.get_value("items", id, 0))
 			if cnt > 0:
 				inventory[str(id)] = cnt
-		_clothing_seeded = bool(cfg.get_value("meta", "clothing_seeded", false))
+	_clothing_seeded = bool(cfg.get_value("meta", "clothing_seeded", false))
+	_farm_seeded = bool(cfg.get_value("meta", "farm_seeded", false))
+	_workshop_seeded = bool(cfg.get_value("meta", "workshop_seeded", false))
 	if inventory.is_empty():
 		_migrate_warehouse_to_inventory()
 
@@ -511,6 +560,40 @@ func seed_starter_clothing(pool: Array) -> void:
 	_clothing_seeded = true
 	_save_inventory()
 	inventory_changed.emit()
+
+
+## 一次性播种：首次运行给起始种子（每款各 2 粒）+ 花盆若干，让种植屏开箱即用。
+## 带 _farm_seeded flag 持久化，避免玩家用掉后又被刷回来。
+## seed_ids 来自 main 的种子池；pot_id 为花盆物品 id（与 product_pot.tres 对齐）。
+func seed_starter_farm(seed_ids: Array, pot_id: String, pot_count: int) -> void:
+	if _farm_seeded:
+		return
+	for sid in seed_ids:
+		if not sid.is_empty() and not inventory.has(sid):
+			inventory[sid] = 2
+	if not pot_id.is_empty() and not inventory.has(pot_id):
+		inventory[pot_id] = pot_count
+	_farm_seeded = true
+	_save_inventory()
+	inventory_changed.emit()
+
+
+## 一次性发放工坊起始材料（红染料、纤维、可分解作物）。
+## 改为自愈逻辑：不依赖 flag，每次启动检查库存是否达到目标数量，不足就补。
+## 这样即使存档状态不一致（之前运行过有 bug 的版本）也能自愈。
+func seed_starter_workshop(materials: Dictionary) -> void:
+	var changed := false
+	for iid in materials:
+		var target: int = int(materials[iid])
+		if iid.is_empty() or target <= 0:
+			continue
+		var have: int = int(inventory.get(iid, 0))
+		if have < target:
+			inventory[iid] = target    # 补到目标数量（不覆盖已有的更多）
+			changed = true
+	if changed:
+		_save_inventory()
+		inventory_changed.emit()
 
 
 # ═══════════════════ 穿搭（equipped，slot -> item_id；与所有权分离） ═══════════════════

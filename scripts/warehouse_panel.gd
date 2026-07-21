@@ -1,79 +1,165 @@
 extends Control
-## WarehousePanel · 仓库图鉴弹窗（覆盖层）
+## WarehousePanel · 仓库全局浮层（覆盖层，任意屏可开）
 ##
-## 收集图鉴：从 product_pool 展示全集。
-##   - 已拥有（GameManager.has_product(id)）：显示图标 + 名称
-##   - 未拥有：显示「?」占位 + 名称「？？？」
-## 网格布局。
+## 数据驱动：展示统一 inventory（GameManager）按分类的已拥有物品。
+##   - 顶部分类 chips：全部 / 服装 / 作物 / 制作物 / 摆放
+##   - 主体：紧凑图标网格（带数量角标），可滚动
+##   - 监听 GameManager.inventory_changed 增量刷新（仅更新当前 filter 的变化项，避免整表重建）
+##   - 角落「🎒 总数」徽标实时反映总库存
+##   - 可摆放物品（placeable_scene != null）显示「摆放」→ placement_requested 交给 Main
 
-signal placement_requested(data: ProductData)   ## 已拥有物品点击「摆放」时发出，由 Main 转发给 PlacementManager
+signal placement_requested(data: ItemData)   ## 点击「摆放」时发出，由 Main 转发给 PlacementManager
 
-@export var product_pool: Array[ProductData] = []
+const COLUMNS := 4
 
-@onready var _grid: GridContainer = $Card/Content/Grid
+## 分类筛选：label + ItemData.Category 值（-1 = 全部）
+const _FILTERS := [
+	{"label": "全部", "cat": -1},
+	{"label": "服装", "cat": ItemData.Category.CLOTHING},
+	{"label": "作物", "cat": ItemData.Category.CROP},
+	{"label": "制作物", "cat": ItemData.Category.CRAFT},
+	{"label": "摆放", "cat": ItemData.Category.PLACEABLE},
+]
+
+@onready var _chips: HBoxContainer = $Card/Content/Chips
+@onready var _grid: GridContainer = $Card/Content/Scroll/Grid
 @onready var _close_btn: Button = $Card/Content/TitleBar/CloseButton
+@onready var _total_badge: Label = $Card/Content/TitleBar/TotalBadge
 
+var _filter: int = -1                 ## 当前筛选（-1 = 全部）
+var _cells: Dictionary = {}           ## id -> cell 根节点（增量刷新用）
 
 func _ready() -> void:
 	_close_btn.pressed.connect(_on_close)
-	_ensure_pool()
+	_build_chips()
 	_populate()
-	# 作为常驻切屏时：每次重新可见都重建网格，反映隐藏期间新到货/新拥有的物品。
+	GameManager.inventory_changed.connect(_on_inventory_changed)
 	visibility_changed.connect(_on_visibility_changed)
 
 
-## 切屏可见即刷新：重建图鉴网格（拥有态可能已变化）
-func _on_visibility_changed() -> void:
-	if visible:
-		_populate()
+## 构建分类筛选 chips（5 枚按钮，代码填充）
+func _build_chips() -> void:
+	for f in _FILTERS:
+		var btn := Button.new()
+		btn.text = f["label"]
+		btn.add_theme_font_size_override("font_size", 13)
+		btn.pressed.connect(_on_chip_pressed.bind(int(f["cat"])))
+		_chips.add_child(btn)
 
 
-func _ensure_pool() -> void:
-	if not product_pool.is_empty():
+func _on_chip_pressed(cat: int) -> void:
+	if _filter == cat:
 		return
-	for path in ["res://data/product_chair.tres", "res://data/product_desk.tres", "res://data/product_lamp.tres"]:
-		var res = load(path)
-		if res != null:
-			product_pool.append(res)
+	_filter = cat
+	_populate()                         ## 切换分类：重建网格
 
 
+## 当前 filter 应展示的物品列表：[{data, count}]
+func _items_for_filter() -> Array:
+	if _filter == -1:
+		var out: Array = []
+		for cat in [
+			ItemData.Category.CLOTHING, ItemData.Category.SEED, ItemData.Category.CROP,
+			ItemData.Category.MATERIAL, ItemData.Category.BLUEPRINT,
+			ItemData.Category.CRAFT, ItemData.Category.PLACEABLE
+		]:
+			out.append_array(GameManager.get_by_category(cat))
+		return out
+	return GameManager.get_by_category(_filter)
+
+
+## 重建当前 filter 的全部 cell（filter 切换 / 首次 / 可见刷新时调用）
 func _populate() -> void:
 	for c in _grid.get_children():
 		c.queue_free()
-	for p in product_pool:
-		var cell := VBoxContainer.new()
-		cell.add_theme_constant_override("separation", 4)
-		var owned: bool = GameManager.has_product(p.id)
-		var icon := _make_icon(p, owned)
-		var name_l := Label.new()
-		name_l.text = p.display_name if owned else "？？？"
-		name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		cell.add_child(icon)
-		cell.add_child(name_l)
-		if owned:
-			var place_btn := Button.new()
-			place_btn.text = "摆放"
-			place_btn.add_theme_font_size_override("font_size", 14)
-			place_btn.pressed.connect(func(): placement_requested.emit(p))
-			cell.add_child(place_btn)
+	_cells.clear()
+	for entry in _items_for_filter():
+		var cell := _make_cell(entry["data"], entry["count"])
 		_grid.add_child(cell)
+		_cells[entry["data"].id] = cell
+	_update_total()
 
 
-func _make_icon(p: ProductData, owned: bool) -> Control:
-	if owned and p.icon != null:
-		var tex := TextureRect.new()
-		tex.texture = p.icon
-		tex.custom_minimum_size = Vector2(56, 56)
-		tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		return tex
-	# 未拥有：问号占位
-	var q := Label.new()
-	q.text = "?"
-	q.add_theme_font_size_override("font_size", 36)
-	q.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	q.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	q.custom_minimum_size = Vector2(56, 56)
-	return q
+## 增量刷新：仅更新当前 filter 中变化的 cell（新增 / 移除 / 数量变化），避免整表重建
+func _refresh_counts() -> void:
+	var items: Array = _items_for_filter()
+	var want: Dictionary = {}
+	for e in items:
+		want[e["data"].id] = e["count"]
+	# 移除不再拥有的
+	for id in _cells.keys():
+		if not want.has(id):
+			var c = _cells[id]
+			if is_instance_valid(c):
+				c.queue_free()
+			_cells.erase(id)
+	# 更新已有 + 新增
+	for e in items:
+		var id: String = e["data"].id
+		var count: int = e["count"]
+		if _cells.has(id):
+			var lbl: Label = _cells[id].get_node_or_null("CountBadge")
+			if lbl != null:
+				lbl.text = "x%d" % count
+		else:
+			var cell := _make_cell(e["data"], count)
+			_grid.add_child(cell)
+			_cells[id] = cell
+	_update_total()
+
+
+## 构建一个网格单元：图标 + 名称 + 数量角标（+ 可摆放物的「摆放」按钮）
+func _make_cell(data: ItemData, count: int) -> Control:
+	var cell := Control.new()
+	cell.custom_minimum_size = Vector2(96, 96)
+	# 图标
+	var icon := TextureRect.new()
+	icon.name = "Icon"
+	icon.texture = data.icon
+	icon.custom_minimum_size = Vector2(48, 48)
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.position = Vector2(24, 4)
+	cell.add_child(icon)
+	# 名称
+	var name_l := Label.new()
+	name_l.text = data.display_name
+	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_l.add_theme_font_size_override("font_size", 12)
+	name_l.position = Vector2(2, 54)
+	name_l.size = Vector2(92, 16)
+	cell.add_child(name_l)
+	# 数量角标（右上）
+	var badge := Label.new()
+	badge.name = "CountBadge"
+	badge.text = "x%d" % count
+	badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	badge.add_theme_font_size_override("font_size", 12)
+	badge.add_theme_color_override("font_color", Color(0.95, 0.85, 0.4))
+	badge.position = Vector2(60, 2)
+	cell.add_child(badge)
+	# 可摆放：摆放按钮
+	if data.placeable_scene != null:
+		var place_btn := Button.new()
+		place_btn.text = "摆放"
+		place_btn.add_theme_font_size_override("font_size", 12)
+		place_btn.position = Vector2(22, 72)
+		place_btn.pressed.connect(func(): placement_requested.emit(data))
+		cell.add_child(place_btn)
+	return cell
+
+
+func _update_total() -> void:
+	_total_badge.text = "🎒 %d" % GameManager.get_total_count()
+
+
+func _on_inventory_changed() -> void:
+	if visible:
+		_refresh_counts()
+
+
+func _on_visibility_changed() -> void:
+	if visible:
+		_refresh_counts()                 ## 切回时同步最新库存
 
 
 func _on_close() -> void:

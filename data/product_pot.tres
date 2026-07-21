@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="ProductData" format=3 uid="uid://db6myw8hyaeeq"]
+
+[ext_resource type="Script" uid="uid://dxqekno6lxle8" path="res://scripts/resources/product_data.gd" id="1_prod"]
+[ext_resource type="PackedScene" path="res://scenes/placeable/pot.tscn" id="2_scene"]
+
+[resource]
+script = ExtResource("1_prod")
+id = "pot"
+display_name = "花盆"
+description = "种花用的花盆，在种植屏放入槽位（也可摆到桌面作装饰）"
+price = 20
+placeable_scene = ExtResource("2_scene")

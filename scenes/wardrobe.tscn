@@ -15,10 +15,20 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_wardrobe")
 
+[node name="Bg" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.15, 0.12, 0.1, 1)
+mouse_filter = 2
+
 [node name="CharacterArea" type="Control" parent="." unique_id=1330530816]
 anchors_preset = 0
 offset_right = 360.0
-offset_bottom = 420.0
+offset_bottom = 368.0
 script = ExtResource("2_target")
 
 [node name="CharacterRoot" type="Node2D" parent="CharacterArea" unique_id=1242010312]
@@ -46,7 +56,7 @@ visible = false
 layout_mode = 0
 offset_left = 360.0
 offset_right = 680.0
-offset_bottom = 420.0
+offset_bottom = 368.0
 theme = SubResource("Theme_backpack")
 
 [node name="TitleLabel" type="Label" parent="BackpackArea" unique_id=953875044]

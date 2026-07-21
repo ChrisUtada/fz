@@ -30,6 +30,13 @@ extends ItemData
 ## 留空时种植屏回退到通用占位图标（或本类 icon）。
 @export var stage_icons: Array[Texture2D] = []
 
+## 三阶段"世界植物贴图"（可选，花园屏 GardenPot 用）：苗/成长/成熟三张正稿图像。
+## 与 stage_icons（背包小图标）区分——此处是花园里渲染的植物本体大图。
+## 留空时 GardenPot 回退到 stage_icons[stage] 或 icon。
+@export var sprout_tex: Texture2D = null    ## 苗阶段世界贴图
+@export var growing_tex: Texture2D = null   ## 成长阶段世界贴图
+@export var mature_tex: Texture2D = null    ## 成熟阶段世界贴图
+
 
 func _init() -> void:
 	category = ItemData.Category.SEED

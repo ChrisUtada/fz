@@ -17,9 +17,10 @@ const TEXT_MUTED := Color(0.40, 0.36, 0.30)
 const TEXT_DISABLED := Color(0.72, 0.26, 0.20)
 
 @export var product_pool: Array[ProductData] = []
+@export var seed_pool: Array[SeedData] = []      ## 阶段 2.3：种子商品（与产品同列，单独分区）
 
 var _current_view: int = LIST_VIEW
-var _pending: ProductData
+var _pending: ItemData
 
 @onready var _list_view: Control = $Card/Content/ListView
 @onready var _product_list: VBoxContainer = $Card/Content/ListView/ProductList
@@ -81,7 +82,7 @@ func _ensure_pool() -> void:
 func _populate() -> void:
 	for child in _product_list.get_children():
 		child.queue_free()
-	if product_pool.is_empty():
+	if product_pool.is_empty() and seed_pool.is_empty():
 		var empty := Label.new()
 		empty.text = "（暂无商品）"
 		_style_label(empty)
@@ -89,32 +90,48 @@ func _populate() -> void:
 		return
 	for p in product_pool:
 		_add_product_row(p)
+	if not seed_pool.is_empty():
+		var header := Label.new()
+		header.text = "—— 种子 ——"
+		_style_label(header)
+		_product_list.add_child(header)
+		for s in seed_pool:
+			_add_seed_row(s)
 
 
 func _add_product_row(p: ProductData) -> void:
+	_add_item_row(p, "%d 分送达" % p.delivery_minutes)
+
+
+func _add_seed_row(s: SeedData) -> void:
+	_add_item_row(s, "5 分送达")
+
+
+## 通用行：产品与种子共用（ItemData 基类字段），配送文案由调用方给出
+func _add_item_row(item: ItemData, delivery_text: String) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 
-	var icon := _make_icon(p)
+	var icon := _make_icon(item)
 	var name_l := Label.new()
-	name_l.text = p.display_name
+	name_l.text = item.display_name
 	name_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_style_label(name_l)
 	var price_l := Label.new()
-	price_l.text = "%d 金币" % p.price
+	price_l.text = "%d 金币" % item.price
 	_style_label(price_l)
 	var deliv_l := Label.new()
-	deliv_l.text = "%d 分送达" % p.delivery_minutes
+	deliv_l.text = delivery_text
 	_style_label(deliv_l)
 	var buy := Button.new()
 	buy.text = "购买"
-	buy.pressed.connect(func(): _on_buy_pressed(p))
+	buy.pressed.connect(_on_buy_pressed.bind(item))
 	_style_button(buy)
-	if GameManager.gold < p.price:
+	if GameManager.gold < item.price:
 		# 买不起：禁用并给出可见提示（原先只灰掉按钮、浅底浅字像「无响应」）
 		buy.disabled = true
 		buy.text = "金币不足"
-		buy.tooltip_text = "需要 %d 金币，当前 %d" % [p.price, GameManager.gold]
+		buy.tooltip_text = "需要 %d 金币，当前 %d" % [item.price, GameManager.gold]
 
 	row.add_child(icon)
 	row.add_child(name_l)
@@ -124,10 +141,10 @@ func _add_product_row(p: ProductData) -> void:
 	_product_list.add_child(row)
 
 
-func _make_icon(p: ProductData) -> Control:
-	if p.icon != null:
+func _make_icon(item: ItemData) -> Control:
+	if item.icon != null:
 		var tex := TextureRect.new()
-		tex.texture = p.icon
+		tex.texture = item.icon
 		tex.custom_minimum_size = Vector2(32, 32)
 		tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		return tex
@@ -139,9 +156,12 @@ func _make_icon(p: ProductData) -> Control:
 
 # ═══════════════════ 购买 / 确认 ═══════════════════
 
-func _on_buy_pressed(p: ProductData) -> void:
-	_pending = p
-	_confirm_label.text = "购买 %s？\n将扣除 %d 金币，%d 分钟后到货" % [p.display_name, p.price, p.delivery_minutes]
+func _on_buy_pressed(item: ItemData) -> void:
+	_pending = item
+	var dur_text := "5 分"            ## 种子等无 delivery_minutes 的物品用默认配送时长
+	if item is ProductData:
+		dur_text = "%d 分" % item.delivery_minutes
+	_confirm_label.text = "购买 %s？\n将扣除 %d 金币，%s后到货" % [item.display_name, item.price, dur_text]
 	_show_confirm()
 
 

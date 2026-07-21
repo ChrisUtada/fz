@@ -42,6 +42,7 @@ var _drag_offset := Vector2i.ZERO
 
 # ─── 阶段 3 补：产品数据（Resource，电话购物 / 仓库消费） ───
 @export var product_pool: Array[ProductData] = []     ## 产品资源池（.tres），拖入即用
+@export var seed_pool: Array[SeedData] = []           ## 种子资源池（.tres），拖入即用（阶段 2.3 商城售卖）
 
 # 节点引用 —— 通过 @onready 注入，不硬编码路径搜索
 @onready var play_area: Node2D = $Panel/PlayArea
@@ -72,6 +73,21 @@ func _ready() -> void:
 	for c in clothes_pool:
 		GameManager.register_item(c)
 	GameManager.seed_starter_clothing(clothes_pool)
+	# 阶段 2.3：注册种子/作物到注册表（农场逻辑据此解析 SeedData），并一次性播种起始种子+花盆
+	_ensure_seed_pool()
+	for s in seed_pool:
+		GameManager.register_item(s)
+	_register_item_resources()
+	GameManager.seed_starter_farm(_seed_ids(), "pot", 2)
+	# 阶段 2.4：发放工坊起始材料（红染料、纤维、可分解作物），走通 分解→材料→制作
+	GameManager.seed_starter_workshop({
+		"red_dye": 3,
+		"fiber": 5,
+		"rose": 2,
+	})
+	# 阶段 2.4：补足起始灵感至 20（让围巾蓝图可解锁，便于测试制作）；已达标则不补
+	if GameManager.inspiration_total_earned < 20:
+		GameManager.add_inspiration(20 - GameManager.inspiration_total_earned)
 	_instance_phone()
 	placement_manager.init(product_pool, $Panel/PlacedItems)
 	_setup_screens()
@@ -316,14 +332,60 @@ func _open_inspiration() -> void:
 
 # ═══════════════════ 阶段 3 补：电话购物 + 仓库 ═══════════════════
 
-## 数据驱动回退：未拖入任何 .tres 时，自动加载内置三个产品
+## 数据驱动回退：未拖入任何 .tres 时，自动加载内置三个产品（+ 花盆，供种植屏购买）
 func _ensure_product_pool() -> void:
 	if not product_pool.is_empty():
 		return
-	for path in ["res://data/product_chair.tres", "res://data/product_desk.tres", "res://data/product_lamp.tres"]:
+	for path in ["res://data/product_chair.tres", "res://data/product_desk.tres", "res://data/product_lamp.tres", "res://data/product_pot.tres"]:
 		var res = load(path)
 		if res != null:
 			product_pool.append(res)
+
+
+## 数据驱动回退：未拖入任何 .tres 时，自动加载内置种子（供商城售卖 + 注册）
+func _ensure_seed_pool() -> void:
+	if not seed_pool.is_empty():
+		return
+	for path in ["res://data/seeds/seed_rose.tres"]:
+		var res = load(path)
+		if res != null:
+			seed_pool.append(res)
+
+
+## 注册 data/ 下各物品目录的全部资源进统一库存注册表。
+## seeds/crops：农场逻辑据此解析 SeedData（阶段 0.9/2.3）。
+## materials/craft：工坊制作（2.4）的「材料输入」与「成品产出」需经注册表解析名称/分类。
+func _register_item_resources() -> void:
+	for dir in ["res://data/seeds/", "res://data/crops/", "res://data/materials/", "res://data/craft/"]:
+		for path in _list_data_dir(dir):
+			var d = load(path)
+			if d is ItemData:
+				GameManager.register_item(d)
+
+
+## 返回当前种子池的 id 列表（供一次性播种）
+func _seed_ids() -> Array:
+	var out: Array = []
+	for s in seed_pool:
+		if s != null and not s.id.is_empty():
+			out.append(s.id)
+	return out
+
+
+## 列出目录下全部 .tres 路径（用于数据驱动注册）
+func _list_data_dir(dir: String) -> Array:
+	var out: Array = []
+	var d := DirAccess.open(dir)
+	if d == null:
+		return out
+	d.list_dir_begin()
+	var f := d.get_next()
+	while not f.is_empty():
+		if not d.current_is_dir() and f.ends_with(".tres"):
+			out.append(dir + f)
+		f = d.get_next()
+	d.list_dir_end()
+	return out
 
 
 ## 数据驱动回退：未拖入任何 .tres 时，自动加载内置五款服装（供注册/播种/换装用）
@@ -377,6 +439,7 @@ func _open_catalog() -> void:
 	var scene := preload("res://scenes/product_catalog.tscn")
 	var panel: Control = scene.instantiate()
 	panel.product_pool = product_pool
+	panel.seed_pool = seed_pool
 	add_child(panel)
 
 
@@ -391,10 +454,10 @@ func _placed_at_point(global_pos: Vector2) -> Node2D:
 	return null
 
 
-## 仓库「摆放」按钮回调：把该产品实例化为世界中的可摆放物体
-func _on_placement_requested(data: ProductData) -> void:
+## 仓库「摆放」按钮回调：把该物品实例化为世界中的可摆放物体
+func _on_placement_requested(data: ItemData) -> void:
 	if placement_manager != null:
-		placement_manager.spawn_from_product(data)
+		placement_manager.spawn_from_product(data as ProductData)
 
 
 # ═══════════════════ 阶段 1：四界面切换框架接线（步骤 1.3） ═══════════════════
@@ -409,7 +472,7 @@ func _on_placement_requested(data: ProductData) -> void:
 const _SCREEN_DEFS := [
 	{"id": "farm", "title": "种植屏（占位·阶段2填充）"},
 	{"id": "wardrobe", "title": "换装屏"},
-	{"id": "workshop", "title": "工坊屏（占位·阶段2填充）"},
+	{"id": "workshop", "title": "工坊屏"},
 ]
 
 
@@ -427,8 +490,10 @@ func _setup_screens() -> void:
 		match def["id"]:
 			"wardrobe":
 				scr = _make_wardrobe_screen()      ## 换装屏 = 复用换装场景（原右侧菜单「换装」并入）
-			_:
-				scr = _make_placeholder_screen(def["title"])  ## 种植/工坊：阶段 2.3/2.4 前占位
+			"farm":
+				scr = _make_farm_screen()          ## 种植屏（阶段 2.3，完整玩法）
+			"workshop":
+				scr = _make_workshop_screen()      ## 工坊屏（阶段 2.4：制作 + 分解两子页）
 		scr.name = "Screen_" + def["id"]
 		screens_root.add_child(scr)
 		screen_manager.register_screen(def["id"], scr)   ## 注册即隐藏
@@ -457,6 +522,22 @@ func _make_wardrobe_screen() -> Control:
 	return w
 
 
+## 种植屏（阶段 2.3）：实例化 farm_screen 场景，注入花盆 id，不足时经 shop_requested 打开商城。
+func _make_farm_screen() -> Control:
+	var scene := preload("res://scenes/farm_screen.tscn")
+	var f: Control = scene.instantiate()
+	f.shop_requested.connect(_on_phone_shop_requested)
+	return f
+
+
+## 工坊屏（阶段 2.4）：实例化 workshop_screen 场景，含「制作 / 分解」两子页。
+## 数据全走 GameManager（blueprints / inventory / craft / decompose），屏只渲染交互。
+func _make_workshop_screen() -> Control:
+	var scene := preload("res://scenes/workshop_screen.tscn")
+	var w: Control = scene.instantiate()
+	return w
+
+
 ## 仓库 = 全局浮层（非切换屏）：任意屏激活时都能打开，不占用 tab 切换位。
 ## 实例挂到 Screens 容器内（绘制序在 TabBar 之下），故招牌栏始终可点、可再点收起。
 ## 其内部 × 关闭会 queue_free，tree_exited 时清空引用以便再次打开。
@@ -477,7 +558,6 @@ func _open_warehouse_global() -> void:
 		return
 	var scene := preload("res://scenes/warehouse_panel.tscn")
 	var panel: Control = scene.instantiate()
-	panel.product_pool = product_pool
 	panel.placement_requested.connect(_on_placement_requested)
 	screens_root.add_child(panel)          ## 置于 Screens 容器内 → 绘制在 TabBar 之下
 	panel.tree_exited.connect(_on_warehouse_exited)
