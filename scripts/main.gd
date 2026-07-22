@@ -224,13 +224,15 @@ func _input(event: InputEvent) -> void:
 			if _has_inspiration():
 				return
 			# 窗口拖动限定在顶部拖拽带：避免与换装/列表等内部拖拽冲突。
-			# mp 为全局坐标，减去窗口全局位置即得窗口内局部 y；仅顶边 TOP_DRAG_BAND 内可抓。
-			var _win_pos := DisplayServer.window_get_position()
-			if mp.y - _win_pos.y > TOP_DRAG_BAND:
+			# 注意：mp 为视口坐标(=窗口内局部 y，0..420)，而 window_get_position() 是屏幕坐标；
+			# 二者不能相减。统一用 DisplayServer 的屏幕坐标差，得到窗口内局部 y 才正确。
+			# 修复前 mp.y - _win_pos.y 得负数导致拖拽带判断失效、任意位置都能拖窗的 bug。
+			var local_y := DisplayServer.mouse_get_position().y - DisplayServer.window_get_position().y
+			if local_y > TOP_DRAG_BAND:
 				return
 			# 空白 → 开始拖拽窗口
 			_dragging = true
-			_drag_offset = _win_pos - DisplayServer.mouse_get_position()
+			_drag_offset = DisplayServer.window_get_position() - DisplayServer.mouse_get_position()
 		else:
 			_dragging = false
 	elif event is InputEventMouseMotion and _dragging:
