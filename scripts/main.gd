@@ -191,24 +191,25 @@ func _input(event: InputEvent) -> void:
 			# 仓库全局浮层已打开时：点击交由浮层自身处理，不拖窗口
 			if _has_warehouse():
 				return
-			# 有活动屏时：屏为覆盖层，点击交由屏自身处理，不拖窗口
-			if _has_active_screen():
-				return
-			# 点中宠物：宠物自身 _input 已消费（拖动/轻点红心），此处不拖窗口
-			if _pet_at_point(mp) != null:
-				return
-			# 点中顾客：顾客自身 _input 已消费并自行处理（拖动/轻点完成），此处不拖窗口
-			if _customer_at_point(mp) != null:
-				return
-			# 点中已摆放物品：摆放物自身 _input 已消费（拖动），此处不拖窗口
-			if _placed_at_point(mp) != null:
-				return
-			# 点中电话摆件：交给电话自身处理点击，不拖窗口
-			if _phone_at_point(mp):
-				return
-			# 点中服装展架摆件：交给展架自身处理点击/拖动，不拖窗口
-			if _rack_at_point(mp):
-				return
+			# 分页屏（工坊/种植/换装）视为常驻主视图：屏下方被遮挡的
+			# 宠物/顾客/摆放物/电话/展架不应抢点击，故跳过其命中检测；
+			# 屏内空白区仍允许拖拽窗口（与家园态一致）。
+			if not _has_active_screen():
+				# 点中宠物：宠物自身 _input 已消费（拖动/轻点红心），此处不拖窗口
+				if _pet_at_point(mp) != null:
+					return
+				# 点中顾客：顾客自身 _input 已消费并自行处理（拖动/轻点完成），此处不拖窗口
+				if _customer_at_point(mp) != null:
+					return
+				# 点中已摆放物品：摆放物自身 _input 已消费（拖动），此处不拖窗口
+				if _placed_at_point(mp) != null:
+					return
+				# 点中电话摆件：交给电话自身处理点击，不拖窗口
+				if _phone_at_point(mp):
+					return
+				# 点中服装展架摆件：交给展架自身处理点击/拖动，不拖窗口
+				if _rack_at_point(mp):
+					return
 			# 产品目录已打开时，不响应空白拖拽（覆盖层处理自身交互）
 			if _has_catalog():
 				return
