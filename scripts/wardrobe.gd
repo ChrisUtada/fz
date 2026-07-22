@@ -46,6 +46,7 @@ func _ready() -> void:
 	_close_button.pressed.connect(_on_close)
 	_char_area.clothes_dropped.connect(_on_clothes_dropped)
 	_char_area.clothes_unequip_requested.connect(_on_unequip_requested)
+	GameManager.equipped_changed.connect(_refresh_worn_badges)
 	_setup_layers()
 	_load_outfit()
 	_populate_backpack()
@@ -74,6 +75,13 @@ func _populate_backpack() -> void:
 		var slot: TextureButton = ITEM_SLOT_SCENE.instantiate()
 		slot.setup(item_data)
 		_grid_container.add_child(slot)
+
+
+## 装备/脱下后实时刷新所有格子的「穿戴中」标签（由 equipped_changed 信号驱动）
+func _refresh_worn_badges() -> void:
+	for slot in _grid_container.get_children():
+		if slot.has_method("update_worn_status"):
+			slot.update_worn_status()
 
 
 ## 衣橱 = 永久收藏：读 GameManager.unlocked_clothes（已解锁/已制作过的服装）。

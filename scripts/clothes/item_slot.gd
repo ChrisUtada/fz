@@ -16,10 +16,18 @@ func setup(item_data: ClothesData) -> void:
 			_data.price,
 			_data.inspiration_value
 		]
-		# 正穿着的衣服在衣橱格子标注「穿戴中」，明确状态（也解释为何展架可售为 0）。
-		# 衣橱只谈收藏与穿着，不显示库存数量，避免与仓库产生认知分歧。
-		if GameManager.is_worn(_data.id):
+		update_worn_status()
+
+
+## 实时更新「穿戴中」标签（装备/脱下后由 Wardrobe 调用）
+func update_worn_status() -> void:
+	var badge := get_node_or_null("WornBadge")
+	if GameManager.is_worn(_data.id):
+		if badge == null:
 			_add_worn_badge()
+	else:
+		if badge != null:
+			badge.queue_free()
 
 
 ## 在格子右上角叠加「穿戴中」角标
