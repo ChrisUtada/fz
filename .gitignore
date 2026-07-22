@@ -30,3 +30,8 @@ desktop.ini
 
 # 本地工具数据（WorkBuddy 内部，非项目内容）
 .workbuddy/
+
+# Python 缓存与临时测试产物（companion 输入统计脚本）
+__pycache__/
+*.pyc
+_rawtest.json
