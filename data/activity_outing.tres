@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="ActivityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/activity_data.gd" id="1_activity"]
+
+[resource]
+script = ExtResource("1_activity")
+mode = 1
+activity_name = "外出"
+inspiration_per_action = 0.05
+description = "外出散步，按真实键鼠输入折算灵感（步行仅动画，不计入）"

@@ -44,6 +44,14 @@ var _drag_offset := Vector2i.ZERO
 @export var product_pool: Array[ProductData] = []     ## 产品资源池（.tres），拖入即用
 @export var seed_pool: Array[SeedData] = []           ## 种子资源池（.tres），拖入即用（阶段 2.3 商城售卖）
 
+# ─── 阶段 2 补：作物/材料/制作产物（Resource，工坊与仓库解析用） ───
+@export var crop_pool: Array[ItemData] = []           ## 作物资源池（.tres）；导出构建中 DirAccess 扫描可能失败，静态池兜底
+@export var material_pool: Array[ItemData] = []       ## 材料资源池（.tres）
+@export var craft_pool: Array[ItemData] = []          ## 制作产出物（.tres），只注册元数据、不进 starter clothing
+
+# ─── 阶段 2.4：蓝图资源池（Resource，工坊显示用） ───
+@export var blueprint_pool: Array[BlueprintData] = []  ## 蓝图资源池（.tres）；导出构建中 DirAccess 扫描可能失败，静态池兜底
+
 # 节点引用 —— 通过 @onready 注入，不硬编码路径搜索
 @onready var play_area: Node2D = $Panel/PlayArea
 @onready var pet_area: Node2D = $Panel/PetArea
@@ -55,6 +63,7 @@ var _drag_offset := Vector2i.ZERO
 @onready var screens_root: Control = $Screens                 ## 四个可切换屏的容器（覆盖层）
 @onready var tab_bar: SignboardTabBar = $TabBar               ## 底部招牌导航栏
 var _arrow_nav: ArrowNav = null                              ## 步骤 1.5：活动面板左右箭头（覆盖层，绘制在屏之上）
+var _focus_bar: FocusBar = null                               ## 番茄钟常驻专注条（右下角，绘制序最高）
 
 # 电话摆件引用（运行期实例化，见 _instance_phone）
 var _phone: Control = null
@@ -83,6 +92,24 @@ func _ready() -> void:
 	_ensure_seed_pool()
 	for s in seed_pool:
 		GameManager.register_item(s)
+	# 阶段 2 补：静态注册作物/材料/制作产物（导出构建中 DirAccess 扫描不可靠，必须显式拖入/回退加载）
+	_ensure_crop_pool()
+	for c in crop_pool:
+		if c != null:
+			GameManager.register_item(c)
+	_ensure_material_pool()
+	for m in material_pool:
+		if m != null:
+			GameManager.register_item(m)
+	_ensure_craft_pool()
+	for c in craft_pool:
+		if c != null:
+			GameManager.register_item(c)
+	# 阶段 2.4：静态注册蓝图（导出构建中 DirAccess 扫描不可靠，必须显式拖入/回退加载）
+	_ensure_blueprint_pool()
+	for bp in blueprint_pool:
+		if bp != null:
+			GameManager.register_blueprint(bp)
 	_register_item_resources()
 	# 起始花盆 id：从产品池按 garden_placement 标志自动识别（不再写死 "pot"），找不到时兜底历史 id
 	var pot_id_for_seed: String = ""
@@ -106,6 +133,7 @@ func _ready() -> void:
 	_instance_rack()
 	placement_manager.init(product_pool, $Panel/PlacedItems)
 	_setup_screens()
+	_setup_focus_bar()
 
 
 ## 每帧把「是否有覆盖层弹窗打开」同步给 GameManager，供顾客/宠物/电话/摆放物
@@ -344,11 +372,16 @@ func _spawn_pet() -> void:
 func _open_inspiration() -> void:
 	if _has_inspiration():
 		return
-	# 数据驱动回退：未拖入任何 .tres 时，自动加载内置“阅读”活动，开箱即用
+	# 数据驱动回退：未拖入任何 .tres 时，自动加载内置“阅读”+“外出”活动，开箱即用
 	if activity_pool.is_empty():
-		var def = load("res://data/activity_reading.tres")
-		if def != null:
-			activity_pool = [def]
+		var pool: Array[ActivityData] = []
+		var reading = load("res://data/activity_reading.tres")
+		var outing = load("res://data/activity_outing.tres")
+		if reading != null:
+			pool.append(reading)
+		if outing != null:
+			pool.append(outing)
+		activity_pool = pool
 	var scene := preload("res://scenes/inspiration_panel.tscn")
 	var panel: Control = scene.instantiate()
 	panel.activity_pool = activity_pool
@@ -377,6 +410,44 @@ func _ensure_seed_pool() -> void:
 			seed_pool.append(res)
 
 
+## 数据驱动回退：未拖入任何 .tres 时，自动加载内置作物（供分解/仓库显示）
+func _ensure_crop_pool() -> void:
+	if not crop_pool.is_empty():
+		return
+	var res = load("res://data/crops/crop_rose.tres")
+	if res != null:
+		crop_pool.append(res)
+
+
+## 数据驱动回退：未拖入任何 .tres 时，自动加载内置材料（供制作/分解/仓库显示）
+func _ensure_material_pool() -> void:
+	if not material_pool.is_empty():
+		return
+	for path in ["res://data/materials/red_dye.tres", "res://data/materials/fiber.tres"]:
+		var res = load(path)
+		if res != null:
+			material_pool.append(res)
+
+
+## 数据驱动回退：未拖入任何 .tres 时，自动加载内置制作产出物（供制作/仓库显示）
+func _ensure_craft_pool() -> void:
+	if not craft_pool.is_empty():
+		return
+	var res = load("res://data/clothes/clothes_scarf.tres")
+	if res != null:
+		craft_pool.append(res)
+
+
+## 数据驱动回退：未拖入任何 .tres 时，自动加载内置蓝图（供工坊显示）
+func _ensure_blueprint_pool() -> void:
+	if not blueprint_pool.is_empty():
+		return
+	for path in ["res://data/blueprints/blueprint_scarf.tres", "res://data/blueprints/blueprint_hat.tres"]:
+		var res = load(path)
+		if res != null:
+			blueprint_pool.append(res)
+
+
 ## 注册 data/ 下各物品目录的全部资源进统一库存注册表。
 ## seeds/crops：农场逻辑据此解析 SeedData（阶段 0.9/2.3）。
 ## materials/craft：工坊制作（2.4）的「材料输入」与「成品产出」需经注册表解析名称/分类。
@@ -402,6 +473,7 @@ func _list_data_dir(dir: String) -> Array:
 	var out: Array = []
 	var d := DirAccess.open(dir)
 	if d == null:
+		push_warning("数据目录扫描失败（导出构建常见）：%s" % dir)
 		return out
 	d.list_dir_begin()
 	var f := d.get_next()
@@ -417,10 +489,11 @@ func _list_data_dir(dir: String) -> Array:
 func _ensure_clothes_pool() -> void:
 	if not clothes_pool.is_empty():
 		return
+	# 回退加载：注意围巾在 data/clothes/ 子目录，路径要带子目录前缀
 	for path in [
 		"res://data/clothes_hat.tres", "res://data/clothes_shirt.tres",
 		"res://data/clothes_skirt.tres", "res://data/clothes_shoe.tres",
-		"res://data/clothes_gt.tres",
+		"res://data/clothes_gt.tres", "res://data/clothes/clothes_scarf.tres",
 	]:
 		var res = load(path)
 		if res != null:
@@ -584,6 +657,55 @@ func _setup_screens() -> void:
 func _on_screen_changed(id: String) -> void:
 	if id == "farm" or id == "wardrobe" or id == "workshop":
 		GameManager.register_interrupt()
+
+
+## 番茄钟专注条：实例化常驻右下角，连接信号。运行期不依赖场景内节点。
+func _setup_focus_bar() -> void:
+	_focus_bar = preload("res://scenes/focus_bar.tscn").instantiate() as FocusBar
+	_focus_bar.visible = false
+	_focus_bar.request_minimize.connect(_enter_focus_mode)
+	_focus_bar.request_expand.connect(_exit_focus_mode)
+	add_child(_focus_bar)                       ## 最后 add → 绘制序最高，盖在一切之上
+	GameManager.activity_started.connect(_on_activity_started)
+	GameManager.activity_finished.connect(_on_focus_activity_ended)
+	GameManager.activity_cancelled.connect(_on_focus_activity_ended)
+	# 若启动时已有进行中的活动（离线恢复），立即显示专注条
+	if GameManager.is_activity_running():
+		_on_activity_started()
+
+
+## 番茄钟开始 → 显示专注条（展开态，游戏主界面照常可见）。外出不弹专注条。
+func _on_activity_started() -> void:
+	if GameManager.get_activity_mode() != ActivityData.Mode.POMODORO:
+		return
+	_focus_bar.visible = true
+	_focus_bar.set_focus_collapsed(false)
+
+
+## 番茄钟自然完成 / 放弃 → 隐藏专注条并恢复游戏主界面
+func _on_focus_activity_ended(_p := {}) -> void:
+	_focus_bar.visible = false
+	_exit_focus_mode()
+
+
+## 缩条态：隐藏游戏主内容，仅显专注条（玩家去做现实中的事）
+func _enter_focus_mode() -> void:
+	$Background.visible = false
+	$Panel.visible = false
+	$Screens.visible = false
+	$TabBar.visible = false
+	$CloseButton.visible = false
+	_focus_bar.set_focus_collapsed(true)
+
+
+## 展开态：恢复游戏主内容
+func _exit_focus_mode() -> void:
+	$Background.visible = true
+	$Panel.visible = true
+	$Screens.visible = true
+	$TabBar.visible = true
+	$CloseButton.visible = true
+	_focus_bar.set_focus_collapsed(false)
 
 
 ## 换装屏：实例化换装场景作为常驻切屏内容。

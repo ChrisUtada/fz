@@ -7,6 +7,8 @@ export/
 /android/export/
 /build/
 bin/
+# 导出的游戏包（重新导出即得，不入库）
+*.pck
 
 # Mono / C# 相关（若后续用 C#）
 .mono/

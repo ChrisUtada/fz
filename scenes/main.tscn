@@ -12,6 +12,7 @@
 [ext_resource type="Resource" path="res://data/clothes_skirt.tres" id="5_trceg"]
 [ext_resource type="Resource" path="res://data/clothes_gt.tres" id="6_a8y0u"]
 [ext_resource type="Resource" path="res://data/clothes_shoe.tres" id="7_jkv2x"]
+[ext_resource type="Resource" path="res://data/clothes/clothes_scarf.tres" id="8_scarf"]
 
 [node name="Main" type="Control" unique_id=928901657]
 layout_mode = 3
@@ -21,7 +22,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_main")
-clothes_pool = Array[ExtResource("2_choun")]([ExtResource("3_ya4ey"), ExtResource("4_eb6dy"), ExtResource("5_trceg"), ExtResource("6_a8y0u"), ExtResource("7_jkv2x")])
+clothes_pool = Array[ExtResource("2_choun")]([ExtResource("3_ya4ey"), ExtResource("4_eb6dy"), ExtResource("5_trceg"), ExtResource("6_a8y0u"), ExtResource("7_jkv2x"), ExtResource("8_scarf")])
 
 [node name="Background" type="TextureRect" parent="." unique_id=1190001234]
 layout_mode = 0
@@ -37,7 +38,9 @@ offset_bottom = 420.0
 color = Color(1, 1, 1, 0)
 
 [node name="HUD" parent="Panel" unique_id=1990008568 instance=ExtResource("2_hud")]
-anchors_preset = 0
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
 offset_left = 12.0
 offset_top = 8.0
 offset_right = -12.0
@@ -85,10 +88,13 @@ mouse_filter = 2
 layout_mode = 1
 
 [node name="CloseButton" type="Button" parent="." unique_id=1968642857]
-layout_mode = 0
-offset_left = 636.0
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -44.0
 offset_top = 10.0
-offset_right = 662.0
+offset_right = -18.0
 offset_bottom = 36.0
 text = "×"
 

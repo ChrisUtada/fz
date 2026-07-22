@@ -14,6 +14,7 @@ signal activity_started
 signal activity_finished(reward: Dictionary)
 signal activity_cancelled
 signal activity_interrupted(interrupts: int)  ## 番茄钟进行中发生一次打断（带累计次数）
+signal activity_streak_changed(streak: int)  ## 连击数变化（完成 +1 / 放弃归零）
 
 # ─── 电话购物 / 仓库 信号 ───
 signal orders_changed            ## 进行中订单列表变化（下单 / 到货移出）
@@ -83,6 +84,7 @@ var inspiration: int:
 
 # ─── 灵感活动计时（墙钟 + 存档，支持离线收益） ───
 const ACTIVITY_SAVE_PATH := "user://inspiration_active.json"
+const STREAK_SAVE_PATH := "user://focus_streak.cfg"   ## 连击持久化（跨会话保留，放弃清零）
 
 var _activity_running: bool = false
 var _activity_name: String = ""
@@ -90,6 +92,17 @@ var _activity_per_minute: float = 0.0
 var _activity_start_unix: int = 0
 var _activity_duration_sec: float = 0.0
 var _activity_interrupts: int = 0   ## 本次番茄钟的打断次数（进程内，不持久化；离线补发不记打断）
+var _activity_streak: int = 0   ## 连续完成番茄钟次数（连击；持久化，放弃清零）
+
+# ─── 外出活动：伴生进程键鼠统计（仅 OUTING 模式使用） ───
+@export var companion_python_path: String = "C:/Users/chris/.workbuddy/binaries/python/versions/3.13.12/python.exe"
+@export var companion_script_path: String = "res://tools/companion/input_listener.py"
+var _activity_mode: int = 0             ## 0=POMODORO, 1=OUTING（与 ActivityData.Mode 对应）
+var _companion_pid: int = -1
+var _outing_per_action: float = 0.05
+var _outing_baseline: Dictionary = {"keys": 0, "mouse": 0}
+var _outing_json_path: String = ""
+var _outing_ok: bool = false             ## 伴生进程是否成功启动并开始统计
 
 # ─── 电话订单（墙钟 + 存档，支持离线到货） ───
 const ORDER_SAVE_PATH := "user://phone_orders.json"
@@ -120,13 +133,15 @@ func _ready() -> void:
 	_load_inventory()   # 库存：还原统一 inventory（含旧仓库迁移）
 	_load_equipped()    # 穿搭：还原 equipped（含旧 wardrobe.cfg 一次性迁移）
 	_load_inspiration_total()  # 灵感累计：还原单调计数器
+	_load_streak()             # 连击：还原跨会话连击数
 	_load_blueprints()          # 蓝图：加载定义 + 恢复解锁 + 初始解锁 pass
 	_load_farm()                # 农场：还原槽状态（墙钟，离线照常续算）
 	_load_rack()                # 服装展架：还原上架状态（阶段 4）
+	tree_exiting.connect(_on_tree_exiting)  # 进程退出前清理（杀掉外出统计伴生进程）
 
 
 func _process(_delta: float) -> void:
-	if _activity_running:
+	if _activity_running and _activity_mode == ActivityData.Mode.POMODORO:
 		var elapsed := Time.get_unix_time_from_system() - _activity_start_unix
 		if elapsed >= _activity_duration_sec:
 			_finish_activity()
@@ -170,13 +185,20 @@ func complete_order(base_reward: Dictionary) -> void:
 
 # ═══════════════════ 灵感活动计时 ═══════════════════
 
-## 开始一个活动（墙钟计时，立即存档）。minutes 为设定时长（分钟）。
+## 开始一个活动。minutes 为设定时长（分钟），仅 POMODORO 模式使用。
+## OUTING 模式不启墙钟，改为启动伴生进程统计真实键鼠输入。
 func start_activity(data: ActivityData, minutes: int) -> void:
-	if minutes < 1:
-		minutes = 1
 	_activity_running = true
 	_activity_interrupts = 0   ## 新会话开始，打断计数归零
 	_activity_name = data.activity_name
+	_activity_mode = data.mode
+	if data.mode == ActivityData.Mode.OUTING:
+		_start_companion(data)
+		activity_started.emit()
+		return
+	# 番茄钟：墙钟计时 + 立即存档
+	if minutes < 1:
+		minutes = 1
 	_activity_per_minute = data.inspiration_per_minute
 	_activity_start_unix = int(Time.get_unix_time_from_system())
 	_activity_duration_sec = float(minutes) * 60.0
@@ -184,13 +206,23 @@ func start_activity(data: ActivityData, minutes: int) -> void:
 	activity_started.emit()
 
 
-## 放弃当前进行中的活动（清状态 + 删存档，不发奖）
+## 放弃当前进行中的活动（清状态，不发奖）。OUTING 会先杀掉伴生进程。
 func cancel_activity() -> void:
 	if not _activity_running:
 		return
+	var was_outing := (_activity_mode == ActivityData.Mode.OUTING)
+	if was_outing:
+		_kill_companion()
 	_activity_running = false
 	_activity_interrupts = 0
-	_delete_activity_save()
+	# 放弃番茄钟 → 连击中断清零（外出放弃不影响番茄钟连击）
+	if not was_outing and _activity_streak > 0:
+		_activity_streak = 0
+		_save_streak()
+		activity_streak_changed.emit(0)
+	_activity_mode = 0
+	if not was_outing:
+		_delete_activity_save()
 	activity_cancelled.emit()
 
 
@@ -198,9 +230,11 @@ func is_activity_running() -> bool:
 	return _activity_running
 
 
-## 记录一次打断（番茄钟进行中做了非灵感活动的分心行为）。仅在进行中累加，emit 供 UI 提示。
+## 记录一次打断（仅 POMODORO 进行中做了非灵感活动的分心行为）。OUTING 不记打断。
 func register_interrupt() -> void:
 	if not _activity_running:
+		return
+	if _activity_mode != ActivityData.Mode.POMODORO:
 		return
 	_activity_interrupts += 1
 	activity_interrupted.emit(_activity_interrupts)
@@ -214,11 +248,135 @@ func get_active_activity_name() -> String:
 	return _activity_name
 
 
+func get_activity_mode() -> int:
+	return _activity_mode
+
+
+## 当前连击数（连续完成的番茄钟次数；放弃清零，跨会话保留）
+func get_activity_streak() -> int:
+	return _activity_streak
+
+
+# ─── 外出活动：伴生进程键鼠统计 ───
+
+## 启动伴生进程统计真实键鼠输入，记录基线。会话结束（结束/放弃/退出）时由 _kill_companion 杀掉。
+func _start_companion(data: ActivityData) -> void:
+	_outing_ok = false
+	_companion_pid = -1
+	_outing_per_action = data.inspiration_per_action
+	_outing_json_path = ProjectSettings.globalize_path("user://outing_counts.json")
+	var script_path := ProjectSettings.globalize_path(companion_script_path)
+	var args := PackedStringArray([script_path, _outing_json_path, "50"])
+	var pid := OS.create_process(companion_python_path, args)
+	if pid <= 0:
+		push_warning("外出活动：无法启动输入统计进程（python=%s）" % companion_python_path)
+		return
+	_companion_pid = pid
+	# Python 冷启动（首次加载 ctypes 等模块）可能慢于 0.1s，这里轮询等待进程就绪，
+	# 最多 ~3s，避免误判"未就绪"导致整个外出过程都不计统计。
+	var deadline := Time.get_unix_time_from_system() + 3.0
+	while Time.get_unix_time_from_system() < deadline:
+		var cur := _read_companion_counts()
+		if not cur.is_empty():
+			_outing_baseline = cur
+			_outing_ok = true
+			return
+		await get_tree().create_timer(0.1).timeout
+	# 超时仍未就绪：把进程侧的具体错误透出，便于在 Godot 输出里看到真正原因
+	var err_text := _read_outing_error()
+	if err_text.is_empty():
+		push_warning("外出活动：输入统计进程 3s 内未就绪（可能 python 启动失败或被安全软件拦截钩子）")
+	else:
+		push_warning("外出活动：输入统计进程启动失败 -> %s" % err_text)
+
+
+## 读伴生进程 JSON；未就绪（缺失/未 running/有 error）返回空 Dictionary。
+func _read_companion_counts() -> Dictionary:
+	if _outing_json_path.is_empty() or not FileAccess.file_exists(_outing_json_path):
+		return {}
+	var f := FileAccess.open(_outing_json_path, FileAccess.READ)
+	if f == null:
+		return {}
+	var text := f.get_as_text()
+	f.close()
+	var parsed: Variant = JSON.parse_string(text)
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return {}
+	if not bool(parsed.get("running", false)) or String(parsed.get("error", "")) != "":
+		return {}
+	return {"keys": int(parsed.get("keys", 0)), "mouse": int(parsed.get("mouse", 0))}
+
+
+## 读取伴生进程 JSON 中的 error 字段（用于 UI 诊断：为什么没统计）
+func _read_outing_error() -> String:
+	if _outing_json_path.is_empty() or not FileAccess.file_exists(_outing_json_path):
+		return ""
+	var f := FileAccess.open(_outing_json_path, FileAccess.READ)
+	if f == null:
+		return ""
+	var parsed: Variant = JSON.parse_string(f.get_as_text())
+	f.close()
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return ""
+	return String(parsed.get("error", ""))
+
+
+## 公开给 UI：外出统计未就绪时的原因（空串表示已就绪或未知）
+func get_outing_error() -> String:
+	if _outing_ok:
+		return ""
+	return _read_outing_error()
+
+
+## 外出进行中的实时统计（相对基线的增量）。active=false 表示统计未就绪。
+func get_outing_counts() -> Dictionary:
+	if not _outing_ok:
+		return {"keys": 0, "mouse": 0, "total": 0, "active": false}
+	var cur := _read_companion_counts()
+	if cur.is_empty():
+		return {"keys": 0, "mouse": 0, "total": 0, "active": false}
+	var k := maxi(0, cur["keys"] - _outing_baseline["keys"])
+	var m := maxi(0, cur["mouse"] - _outing_baseline["mouse"])
+	return {"keys": k, "mouse": m, "total": k + m, "active": true}
+
+
+## 结束外出并折算灵感（手动「结束并领取」触发）
+func finish_outing() -> void:
+	if not _activity_running or _activity_mode != ActivityData.Mode.OUTING:
+		return
+	var counts := get_outing_counts()
+	var inputs := int(counts.get("total", 0))
+	var reward := int(ceil(float(inputs) * _outing_per_action - 0.0001))
+	_activity_running = false
+	_kill_companion()
+	add_inspiration(reward)
+	activity_finished.emit({"inspiration": reward, "activity_name": _activity_name, "inputs": inputs, "mode": "outing"})
+	_activity_interrupts = 0
+	_activity_mode = 0
+
+
+func _kill_companion() -> void:
+	if _companion_pid > 0:
+		OS.kill(_companion_pid)
+		_companion_pid = -1
+	_outing_ok = false
+
+
+func _on_tree_exiting() -> void:
+	_kill_companion()
+
+
 func get_remaining_sec() -> float:
 	if not _activity_running:
 		return 0.0
 	var elapsed := Time.get_unix_time_from_system() - _activity_start_unix
 	return maxf(0.0, _activity_duration_sec - elapsed)
+
+
+func get_activity_total_sec() -> float:
+	if not _activity_running:
+		return 0.0
+	return _activity_duration_sec
 
 
 func get_pending_reward() -> int:
@@ -233,11 +391,19 @@ func _finish_activity() -> void:
 	var base := _compute_activity_reward(_activity_per_minute, minutes)
 	## 打断衰减：每次打断 -20%，保底 50%（即最少拿一半灵感）
 	var factor := maxf(0.5, 1.0 - float(_activity_interrupts) * 0.2)
-	var reward := int(ceil(float(base) * factor - 0.0001))
+	## 连击奖励：连续完成番茄钟的额外加成（仅 POMODORO；OUTING 走 finish_outing 不影响）
+	var streak_factor := 1.0
+	if _activity_mode == ActivityData.Mode.POMODORO:
+		_activity_streak += 1
+		streak_factor = _streak_factor(_activity_streak)
+		activity_streak_changed.emit(_activity_streak)
+	var decayed := int(ceil(float(base) * factor - 0.0001))
+	var reward := int(ceil(float(base) * factor * streak_factor - 0.0001))
+	var streak_bonus := maxi(0, reward - decayed)
 	_activity_running = false
 	_delete_activity_save()
 	add_inspiration(reward)
-	activity_finished.emit({"inspiration": reward, "activity_name": _activity_name, "base": base, "interrupts": _activity_interrupts})
+	activity_finished.emit({"inspiration": reward, "activity_name": _activity_name, "base": base, "interrupts": _activity_interrupts, "minutes": minutes, "streak": _activity_streak, "streak_bonus": streak_bonus})
 	_activity_interrupts = 0
 
 
@@ -246,6 +412,18 @@ func _compute_activity_reward(per_minute: float, minutes: int) -> int:
 		minutes = 1
 	var raw := float(minutes) * per_minute
 	return int(ceil(raw - 0.0001))
+
+
+## 连击加成系数：连续完成的番茄钟越多，额外灵感越高（封顶 +50%）。
+## 仅作用于 POMODORO 结算；与打断衰减相乘叠加。
+func _streak_factor(streak: int) -> float:
+	if streak >= 10:
+		return 1.5
+	if streak >= 5:
+		return 1.25
+	if streak >= 2:
+		return 1.10
+	return 1.0
 
 
 func _save_activity() -> void:
@@ -282,12 +460,27 @@ func _load_activity() -> void:
 		_finish_activity()
 	else:
 		_activity_running = true
+		_activity_mode = ActivityData.Mode.POMODORO   ## 存档活动均为番茄钟
 
 
 func _delete_activity_save() -> void:
 	var dir := DirAccess.open("user://")
 	if dir != null:
 		dir.remove("inspiration_active.json")
+
+
+# ─── 连击存档（跨会话保留；放弃清零） ───
+
+func _save_streak() -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("streak", "count", _activity_streak)
+	cfg.save(STREAK_SAVE_PATH)
+
+
+func _load_streak() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(STREAK_SAVE_PATH) == OK:
+		_activity_streak = int(cfg.get_value("streak", "count", 0))
 
 
 # ═══════════════════ 电话订单（多订单并行 + 墙钟 + 存档） ═══════════════════
@@ -399,6 +592,12 @@ func _tick_orders() -> void:
 func register_item(data: ItemData) -> void:
 	if data != null and not data.id.is_empty():
 		_item_registry[data.id] = data
+
+
+## 运行时注册蓝图定义（main 在 _ready 把 blueprint_pool 注册进来；导出构建中 DirAccess 扫描不可靠，静态池兜底）
+func register_blueprint(data: BlueprintData) -> void:
+	if data != null and not data.id.is_empty():
+		_blueprint_registry[data.id] = data
 
 
 func get_item(id: String) -> ItemData:
@@ -571,10 +770,11 @@ func _save_inventory() -> void:
 func _load_inventory() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(INVENTORY_SAVE_PATH) == OK:
-		for id in cfg.get_section_keys("items"):
-			var cnt: int = int(cfg.get_value("items", id, 0))
-			if cnt > 0:
-				inventory[str(id)] = cnt
+		if cfg.has_section("items"):
+			for id in cfg.get_section_keys("items"):
+				var cnt: int = int(cfg.get_value("items", id, 0))
+				if cnt > 0:
+					inventory[str(id)] = cnt
 	_clothing_seeded = bool(cfg.get_value("meta", "clothing_seeded", false))
 	_farm_seeded = bool(cfg.get_value("meta", "farm_seeded", false))
 	_workshop_seeded = bool(cfg.get_value("meta", "workshop_seeded", false))
@@ -586,6 +786,8 @@ func _load_inventory() -> void:
 func _migrate_warehouse_to_inventory() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(WAREHOUSE_PATH) != OK:
+		return
+	if not cfg.has_section("owned"):
 		return
 	for id in cfg.get_section_keys("owned"):
 		var sid := str(id)
@@ -679,6 +881,12 @@ func is_worn(item_id: String) -> bool:
 
 
 func _save_equipped() -> void:
+	if equipped.is_empty():
+		# 没有任何穿搭 → 删除可能残留的空存档，避免下次加载时读到“无段的文件”报错
+		var dir := DirAccess.open("user://")
+		if dir != null:
+			dir.remove(EQUIPPED_SAVE_PATH)
+		return
 	var cfg := ConfigFile.new()
 	for slot in equipped.keys():
 		cfg.set_value("equipped", str(slot), equipped[slot])
@@ -687,13 +895,13 @@ func _save_equipped() -> void:
 
 func _load_equipped() -> void:
 	var cfg := ConfigFile.new()
-	if cfg.load(EQUIPPED_SAVE_PATH) == OK:
+	if cfg.load(EQUIPPED_SAVE_PATH) == OK and cfg.has_section("equipped"):
 		for slot_str in cfg.get_section_keys("equipped"):
 			var vid: String = str(cfg.get_value("equipped", slot_str, ""))
 			if not vid.is_empty():
 				equipped[int(slot_str)] = vid
 		return
-	# 无新存档 → 尝试从旧 wardrobe.cfg（slot -> resource_path）一次性迁移，保住当前穿搭
+	# 无新存档（或文件为空无 equipped 段）→ 尝试从旧 wardrobe.cfg（slot -> resource_path）一次性迁移
 	_migrate_old_wardrobe()
 
 
@@ -702,6 +910,8 @@ func _load_equipped() -> void:
 func _migrate_old_wardrobe() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(OLD_WARDROBE_PATH) != OK:
+		return
+	if not cfg.has_section("equipped"):
 		return
 	for slot_str in cfg.get_section_keys("equipped"):
 		var path: String = str(cfg.get_value("equipped", slot_str, ""))
@@ -742,9 +952,11 @@ func _load_blueprints() -> void:
 			var bp = load(BLUEPRINTS_DIR + fname)
 			if bp is BlueprintData and not bp.id.is_empty():
 				_blueprint_registry[bp.id] = bp
+	else:
+		push_warning("蓝图目录扫描失败（导出构建常见），将依赖 Main 的静态 blueprint_pool 兜底")
 	# 恢复已解锁存档（阈值日后提高也不会回锁）
 	var cfg := ConfigFile.new()
-	if cfg.load(BLUEPRINTS_SAVE_PATH) == OK:
+	if cfg.load(BLUEPRINTS_SAVE_PATH) == OK and cfg.has_section("unlocked"):
 		for id in cfg.get_section_keys("unlocked"):
 			var uid: String = str(id)
 			if _blueprint_registry.has(uid):
@@ -966,11 +1178,15 @@ func _load_farm() -> void:
 
 ## 上架：把某槽设为某 item_id（同槽自动替换）。不校验库存——上架只是「展示意愿」，
 ## 真正可售数量由 get_rack_stock（拥有 − 穿戴）实时算；售出扣的是 inventory。
+## 同款仅可占一个槽：若 item_id 已占用其它槽位，本调用直接忽略（防止重复上架分裂库存）。
 func display_clothing(slot: int, item_id: String) -> void:
 	if slot < 0 or slot >= RACK_SLOTS:
 		return
 	if item_id.is_empty():
 		return
+	for i in range(clothing_rack.size()):
+		if i != slot and clothing_rack[i] == item_id:
+			return
 	clothing_rack[slot] = item_id
 	_save_rack()
 	rack_changed.emit()
@@ -1035,7 +1251,8 @@ func sell_from_rack(slot: int) -> int:
 	return price
 
 
-## 返回可上架服装 [{id, data, available}]，available = 拥有 − 穿戴 > 0
+## 返回可上架服装 [{id, data, available}]，available = 拥有 − 穿戴 > 0；
+## 已上架的款式不再列出（每款仅可占一个槽，避免重复上架）。
 func get_displayable_clothing() -> Array:
 	# 上架约束（需求）：展架仅接受衣物（CLOTHING）。种子/作物/材料/摆放物
 	# 不属于衣物，get_by_category(CLOTHING) 按 category 过滤（且默认跳过 is_placeable）
@@ -1043,6 +1260,8 @@ func get_displayable_clothing() -> Array:
 	var out: Array = []
 	for entry in get_by_category(ItemData.Category.CLOTHING):
 		var id: String = entry["data"].id
+		if clothing_rack.has(id):   # 已占某个槽 → 不再列为可上架，防止同款多槽
+			continue
 		var avail := get_count(id) - get_worn_count(id)
 		if avail > 0:
 			out.append({"id": id, "data": entry["data"], "available": avail})
@@ -1065,6 +1284,20 @@ func _load_rack() -> void:
 	while clothing_rack.size() < RACK_SLOTS:
 		clothing_rack.append("")
 	clothing_rack = clothing_rack.slice(0, RACK_SLOTS)
+	# 清理历史存档：旧逻辑允许同款占多槽，这里保留首次出现、清空其余重复槽，并落盘
+	var seen: Dictionary = {}
+	var dup_found := false
+	for i in range(clothing_rack.size()):
+		var id: String = clothing_rack[i]
+		if id.is_empty():
+			continue
+		if seen.has(id):
+			clothing_rack[i] = ""
+			dup_found = true
+		else:
+			seen[id] = true
+	if dup_found:
+		_save_rack()
 
 
 # ─── 订单存档（user://，持久化结算所需最小信息） ───

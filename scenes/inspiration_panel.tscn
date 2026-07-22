@@ -110,6 +110,18 @@ text = "剩余时间"
 layout_mode = 2
 text = "25:00"
 
+[node name="OutingBox" type="VBoxContainer" parent="Card/Content/TimerView"]
+visible = false
+layout_mode = 2
+
+[node name="OutingHint" type="Label" parent="Card/Content/TimerView/OutingBox"]
+layout_mode = 2
+text = "统计真实键鼠输入，结束时折算灵感"
+
+[node name="OutingCounts" type="Label" parent="Card/Content/TimerView/OutingBox"]
+layout_mode = 2
+text = "键 0 / 鼠 0 次"
+
 [node name="StartButton" type="Button" parent="Card/Content/TimerView"]
 layout_mode = 2
 text = "开始"
@@ -118,6 +130,15 @@ text = "开始"
 layout_mode = 2
 visible = false
 text = "放弃"
+
+[node name="MinimizeButton" type="Button" parent="Card/Content/TimerView"]
+layout_mode = 2
+text = "最小化专注条"
+
+[node name="EndButton" type="Button" parent="Card/Content/TimerView"]
+layout_mode = 2
+visible = false
+text = "结束并领取"
 
 [node name="RewardHint" type="Label" parent="Card/Content/TimerView"]
 layout_mode = 2

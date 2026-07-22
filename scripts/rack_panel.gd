@@ -2,8 +2,8 @@ extends Control
 ## RackPanel · 上架面板（阶段 4.3）
 ##
 ## 6 槽网格：已上架显示图标 + 名称 + 可售库存(=拥有−穿戴) + 下架按钮；
-## 空槽可点选上架。点空槽 → 下方列出「可上架服装」（拥有−穿戴 > 0），点一件即上架到该槽；
-## 同款可重复上架（允许多槽放同一 item_id）。
+## 空槽可点选上架。点空槽 → 下方列出「可上架服装」（拥有−穿戴 > 0 且尚未上架），点一件即上架到该槽；
+## 每款衣物仅可占一个槽（同款不会重复上架分裂库存）。
 ## 监听 inventory_changed / equipped_changed / rack_changed 实时刷新（售出后自动补充/清空）。
 
 signal closed()
@@ -110,7 +110,7 @@ func _on_empty_slot_pressed(slot: int) -> void:
 
 func _show_picker(slot: int) -> void:
 	_clear(_picker)
-	_hint.text = "为槽 %d 选择服装（可重复同款）" % (slot + 1)
+	_hint.text = "为槽 %d 选择服装（每款仅可上架一个槽）" % (slot + 1)
 	var list := GameManager.get_displayable_clothing()
 	if list.is_empty():
 		var none := Label.new()
