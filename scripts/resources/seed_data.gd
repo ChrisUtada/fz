@@ -8,7 +8,7 @@ extends ItemData
 ##
 ## 三阶段生长（墙钟计时，检查器可配分钟数）：
 ##   苗(sprout) → 成长(growing) → 成熟(mature)
-## 成熟后采摘产出 `crop_output_id` 对应的 CROP 物品（进 inventory[CROP]）。
+## 成熟后采摘产出 `crop_output`（直接引用一个 category=CROP 的 ItemData，进 inventory[CROP]）。
 ##
 ## 购买/入库：种子作为 SEED 类商品，购买流程（电话→产品目录）走统一定价 price，
 ## 收货后 `GameManager.add_item(id, 1)` 进 inventory[SEED]（与其他物品一致）。
@@ -23,8 +23,8 @@ extends ItemData
 @export var growing_minutes: int = 5    ## 成长阶段时长（分钟）；>0
 @export var mature_minutes: int = 3     ## 成熟阶段时长（分钟）；>0
 
-## 成熟后产出的 CROP 物品 id（对应一个 category=CROP 的 ItemData，需提前注册进 _item_registry）
-@export var crop_output_id: String = ""
+## 成熟后产出的 CROP 物品（直接引用一个 category=CROP 的 ItemData，无需经注册表按 id 解析）
+@export var crop_output: ItemData = null
 
 ## 三阶段显示图标（可选）：[0]=苗 / [1]=成长 / [2]=成熟。
 ## 留空时种植屏回退到通用占位图标（或本类 icon）。

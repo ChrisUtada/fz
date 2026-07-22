@@ -27,7 +27,7 @@ func _ready() -> void:
 func _build_ui() -> void:
 	var bg := ColorRect.new()
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.color = Color(0.12, 0.10, 0.09, 0.96)
+	bg.color = UITheme.BG_PANEL
 	bg.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(bg)
 
@@ -41,7 +41,7 @@ func _build_ui() -> void:
 
 	var title := Label.new()
 	title.text = "服装展架"
-	title.add_theme_color_override("font_color", Color(0.95, 0.92, 0.88))
+	title.add_theme_color_override("font_color", UITheme.TEXT_PRIMARY)
 	title.add_theme_font_size_override("font_size", 18)
 	layout.add_child(title)
 
@@ -53,7 +53,7 @@ func _build_ui() -> void:
 
 	_hint = Label.new()
 	_hint.text = "点击空槽选择要上架的服装"
-	_hint.add_theme_color_override("font_color", Color(0.8, 0.78, 0.74))
+	_hint.add_theme_color_override("font_color", UITheme.TEXT_MUTED)
 	layout.add_child(_hint)
 
 	_picker = VBoxContainer.new()
@@ -90,11 +90,11 @@ func _populate() -> void:
 			vbox.add_child(icon)
 			var name_lbl := Label.new()
 			name_lbl.text = data.display_name if data != null else id
-			name_lbl.add_theme_color_override("font_color", Color(0.95, 0.92, 0.88))
+			name_lbl.add_theme_color_override("font_color", UITheme.TEXT_PRIMARY)
 			vbox.add_child(name_lbl)
 			var stock := Label.new()
 			stock.text = "可售 ×%d" % GameManager.get_rack_stock(id)
-			stock.add_theme_color_override("font_color", Color(0.85, 0.8, 0.7))
+			stock.add_theme_color_override("font_color", UITheme.TEXT_SECONDARY)
 			vbox.add_child(stock)
 			var undisplay := Button.new()
 			undisplay.text = "下架"
@@ -115,7 +115,7 @@ func _show_picker(slot: int) -> void:
 	if list.is_empty():
 		var none := Label.new()
 		none.text = "暂无可上架服装（需拥有且未全穿在身上）"
-		none.add_theme_color_override("font_color", Color(0.85, 0.6, 0.6))
+		none.add_theme_color_override("font_color", UITheme.TEXT_DANGER)
 		_picker.add_child(none)
 	else:
 		for entry in list:
@@ -159,7 +159,7 @@ func _clear(container: Node) -> void:
 
 func _slot_style() -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.2, 0.17, 0.15, 1.0)
+	s.bg_color = UITheme.BG_SURFACE
 	s.set_corner_radius_all(6)
 	s.content_margin_left = 8
 	s.content_margin_right = 8

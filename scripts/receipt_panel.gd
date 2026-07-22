@@ -14,6 +14,14 @@ extends Control
 
 
 func _ready() -> void:
+	var bg := $Card/Bg as ColorRect
+	if bg != null:
+		bg.color = UITheme.BG_PANEL
+	var title := $Card/Content/TitleBar/Title as Label
+	if title != null:
+		title.add_theme_color_override("font_color", UITheme.TEXT_PRIMARY)
+	_confirm_btn.add_theme_color_override("font_color", UITheme.TEXT_PRIMARY)
+	_close_btn.add_theme_color_override("font_color", UITheme.TEXT_PRIMARY)
 	_close_btn.pressed.connect(_on_close)
 	_confirm_btn.pressed.connect(_on_confirm)
 	_ensure_pool()
@@ -46,6 +54,7 @@ func _populate() -> void:
 		var icon := _make_icon(p)
 		var name_l := Label.new()
 		name_l.text = a["name"]
+		name_l.add_theme_color_override("font_color", UITheme.TEXT_PRIMARY)
 		name_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(icon)
 		row.add_child(name_l)
@@ -67,7 +76,7 @@ func _make_icon(p: ProductData) -> Control:
 		tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		return tex
 	var ph := ColorRect.new()
-	ph.color = Color(0.7, 0.7, 0.7)
+	ph.color = UITheme.BG_SURFACE
 	ph.custom_minimum_size = Vector2(32, 32)
 	return ph
 

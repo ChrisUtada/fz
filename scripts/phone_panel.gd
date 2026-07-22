@@ -26,6 +26,13 @@ var _order_rows: Dictionary = {}   # id -> {bar: ProgressBar, time: Label}
 
 
 func _ready() -> void:
+	var bg := $Card/Bg as ColorRect
+	if bg != null:
+		bg.color = UITheme.BG_PANEL
+	var title := $Card/Content/TitleBar/Title as Label
+	if title != null:
+		title.add_theme_color_override("font_color", UITheme.TEXT_PRIMARY)
+	_close_btn.add_theme_color_override("font_color", UITheme.TEXT_PRIMARY)
 	_close_btn.pressed.connect(_on_close)
 	_shop_btn.pressed.connect(func(): shop_requested.emit())
 	GameManager.arrived_changed.connect(_on_arrived_changed)
@@ -79,6 +86,7 @@ func _rebuild_ongoing(orders: Array) -> void:
 
 		var name_l := Label.new()
 		name_l.text = o["name"]
+		name_l.add_theme_color_override("font_color", UITheme.TEXT_PRIMARY)
 		name_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 		var bar := ProgressBar.new()
@@ -91,6 +99,7 @@ func _rebuild_ongoing(orders: Array) -> void:
 
 		var time_l := Label.new()
 		time_l.text = _format_time(o["remaining_sec"])
+		time_l.add_theme_color_override("font_color", UITheme.TEXT_PRIMARY)
 		time_l.custom_minimum_size = Vector2(40, 0)
 
 		row.add_child(name_l)
@@ -117,9 +126,11 @@ func _refresh_arrived() -> void:
 		var icon := _make_icon(p)
 		var name_l := Label.new()
 		name_l.text = a["name"]
+		name_l.add_theme_color_override("font_color", UITheme.TEXT_PRIMARY)
 		name_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var claim := Button.new()
 		claim.text = "领取"
+		claim.add_theme_color_override("font_color", UITheme.TEXT_PRIMARY)
 		claim.pressed.connect(func(): _on_claim(a["id"]))
 		row.add_child(icon)
 		row.add_child(name_l)
@@ -147,7 +158,7 @@ func _make_icon(p: ProductData) -> Control:
 		tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		return tex
 	var ph := ColorRect.new()
-	ph.color = Color(0.7, 0.7, 0.7)
+	ph.color = UITheme.BG_SURFACE
 	ph.custom_minimum_size = Vector2(32, 32)
 	return ph
 

@@ -1,14 +1,15 @@
-[gd_resource type="Resource" script_class="BlueprintData" format=3 uid="uid://bfp53qv7t488j"]
+[gd_resource type="Resource" script_class="BlueprintData" format=3 uid="uid://bf6lc7xlfyjp4"]
 
+[ext_resource type="Resource" uid="uid://rty3ijju8ekv" path="res://data/clothes_hat.tres" id="1_25esb"]
 [ext_resource type="Script" uid="uid://c0jrvjbqe6pkd" path="res://scripts/resources/blueprint_data.gd" id="1_bp"]
 [ext_resource type="Script" uid="uid://bfamwjglm7r2a" path="res://scripts/resources/material_cost.gd" id="2_mc"]
-[ext_resource type="Resource" path="res://data/clothes/clothes_scarf.tres" id="3_scarf"]
 [ext_resource type="Resource" path="res://data/materials/red_dye.tres" id="4_rd"]
 [ext_resource type="Resource" path="res://data/materials/fiber.tres" id="5_fb"]
 
 [sub_resource type="Resource" id="6_mc1"]
 script = ExtResource("2_mc")
 item = ExtResource("4_rd")
+count = 2
 
 [sub_resource type="Resource" id="7_mc2"]
 script = ExtResource("2_mc")
@@ -17,9 +18,8 @@ count = 2
 
 [resource]
 script = ExtResource("1_bp")
-id = "scarf_bp"
-display_name = "围巾蓝图"
+id = "hat_bp"
+display_name = "帽子蓝图"
 description = "消耗红染料与纤维，制作一条围巾"
-unlock_inspiration = 20
 required_materials = Array[ExtResource("2_mc")]([SubResource("6_mc1"), SubResource("7_mc2")])
-output = ExtResource("3_scarf")
+output = ExtResource("1_25esb")

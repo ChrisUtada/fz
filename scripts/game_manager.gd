@@ -13,6 +13,7 @@ signal currency_changed(new_gold: int, new_inspiration: int)
 signal activity_started
 signal activity_finished(reward: Dictionary)
 signal activity_cancelled
+signal activity_interrupted(interrupts: int)  ## 番茄钟进行中发生一次打断（带累计次数）
 
 # ─── 电话购物 / 仓库 信号 ───
 signal orders_changed            ## 进行中订单列表变化（下单 / 到货移出）
@@ -88,6 +89,7 @@ var _activity_name: String = ""
 var _activity_per_minute: float = 0.0
 var _activity_start_unix: int = 0
 var _activity_duration_sec: float = 0.0
+var _activity_interrupts: int = 0   ## 本次番茄钟的打断次数（进程内，不持久化；离线补发不记打断）
 
 # ─── 电话订单（墙钟 + 存档，支持离线到货） ───
 const ORDER_SAVE_PATH := "user://phone_orders.json"
@@ -173,6 +175,7 @@ func start_activity(data: ActivityData, minutes: int) -> void:
 	if minutes < 1:
 		minutes = 1
 	_activity_running = true
+	_activity_interrupts = 0   ## 新会话开始，打断计数归零
 	_activity_name = data.activity_name
 	_activity_per_minute = data.inspiration_per_minute
 	_activity_start_unix = int(Time.get_unix_time_from_system())
@@ -186,12 +189,25 @@ func cancel_activity() -> void:
 	if not _activity_running:
 		return
 	_activity_running = false
+	_activity_interrupts = 0
 	_delete_activity_save()
 	activity_cancelled.emit()
 
 
 func is_activity_running() -> bool:
 	return _activity_running
+
+
+## 记录一次打断（番茄钟进行中做了非灵感活动的分心行为）。仅在进行中累加，emit 供 UI 提示。
+func register_interrupt() -> void:
+	if not _activity_running:
+		return
+	_activity_interrupts += 1
+	activity_interrupted.emit(_activity_interrupts)
+
+
+func get_activity_interrupts() -> int:
+	return _activity_interrupts
 
 
 func get_active_activity_name() -> String:
@@ -214,11 +230,15 @@ func get_pending_reward() -> int:
 
 func _finish_activity() -> void:
 	var minutes := int(ceil(_activity_duration_sec / 60.0))
-	var reward := _compute_activity_reward(_activity_per_minute, minutes)
+	var base := _compute_activity_reward(_activity_per_minute, minutes)
+	## 打断衰减：每次打断 -20%，保底 50%（即最少拿一半灵感）
+	var factor := maxf(0.5, 1.0 - float(_activity_interrupts) * 0.2)
+	var reward := int(ceil(float(base) * factor - 0.0001))
 	_activity_running = false
 	_delete_activity_save()
 	add_inspiration(reward)
-	activity_finished.emit({"inspiration": reward, "activity_name": _activity_name})
+	activity_finished.emit({"inspiration": reward, "activity_name": _activity_name, "base": base, "interrupts": _activity_interrupts})
+	_activity_interrupts = 0
 
 
 func _compute_activity_reward(per_minute: float, minutes: int) -> int:
@@ -411,12 +431,39 @@ func get_count(id: String) -> int:
 	return inventory.get(id, 0)
 
 
-## 按分类返回 [{data, count}]（data 经注册表解析；未注册的物品跳过）
-func get_by_category(cat: int) -> Array:
+## 按分类返回 [{data, count}]（data 经注册表解析；未注册的物品跳过）。
+## include_placeable=false 时跳过 is_placeable 物品（默认），避免台灯/桌子等
+## 摆进服装/材料等分类标签页（摆放物统一由 get_placeables 收口）。
+func get_by_category(cat: int, include_placeable := false) -> Array:
 	var out: Array = []
 	for id in inventory.keys():
 		var d: ItemData = get_item(id)
-		if d != null and d.category == cat:
+		if d == null or d.category != cat:
+			continue
+		if d.is_placeable and not include_placeable:
+			continue
+		out.append({"data": d, "count": inventory[id]})
+	return out
+
+
+## 返回所有可摆放物品 [{data, count}]（is_placeable=true；data 经注册表解析）
+func get_placeables() -> Array:
+	var out: Array = []
+	for id in inventory.keys():
+		var d: ItemData = get_item(id)
+		if d != null and d.is_placeable:
+			out.append({"data": d, "count": inventory[id]})
+	return out
+
+
+## 返回所有「可作为种植容器」的物品 [{data, count}]（garden_placement=true；data 经注册表解析）。
+## 与 get_placeables 区分：后者是「可摆桌面的装饰」，本方法是「可进种植屏功能槽的盆」。
+## 种植屏据此自动识别可用花盆，无需写死具体 id（支持未来多盆类型）。
+func get_garden_pots() -> Array:
+	var out: Array = []
+	for id in inventory.keys():
+		var d: ItemData = get_item(id)
+		if d != null and d.garden_placement:
 			out.append({"data": d, "count": inventory[id]})
 	return out
 
@@ -453,7 +500,8 @@ func decompose(item_id: String) -> bool:
 	return true
 
 
-## 制作：消耗蓝图所需材料，产出 output_id×output_count 进库存（按 output 的 category 归类）。
+## 制作：消耗蓝图所需材料，产出 output×output_count 进库存（按 output 的 category 归类）。
+## 蓝图直接持有材料/产出资源引用（不靠 id 字符串查注册表），故制作逻辑与 _item_registry 解耦。
 ## 前置：蓝图已注册 + 已解锁 + 材料齐。三项任一不满足即返回 false（不改动库存）。
 ## 成功时 add_item/remove_item 各自发 inventory_changed（工坊 UI 即时刷新）。
 func craft(blueprint_id: String) -> bool:
@@ -462,32 +510,21 @@ func craft(blueprint_id: String) -> bool:
 		return false
 	if not unlocked_blueprints.has(blueprint_id):
 		return false
+	if bp.output == null:
+		return false
 	# 先校验材料齐（不足则不动库存直接返回）
-	for e in bp.required_materials:
-		if not e is Dictionary:
+	for mc in bp.required_materials:
+		if mc == null or mc.item == null or mc.count <= 0:
 			continue
-		var norm := {}
-		for k in e.keys():
-			norm[str(k)] = e[k]
-		var iid: String = str(norm.get("item_id", ""))
-		var n: int = int(norm.get("count", 0))
-		if iid.is_empty() or n <= 0:
-			continue
-		if get_count(iid) < n:
+		if get_count(mc.item.id) < mc.count:
 			return false
 	# 扣材料
-	for e in bp.required_materials:
-		if not e is Dictionary:
+	for mc in bp.required_materials:
+		if mc == null or mc.item == null or mc.count <= 0:
 			continue
-		var norm := {}
-		for k in e.keys():
-			norm[str(k)] = e[k]
-		var iid: String = str(norm.get("item_id", ""))
-		var n: int = int(norm.get("count", 0))
-		if not iid.is_empty() and n > 0:
-			remove_item(iid, n)
+		remove_item(mc.item.id, mc.count)
 	# 产出
-	add_item(bp.output_id, bp.output_count)
+	add_item(bp.output.id, bp.output_count)
 	return true
 
 
@@ -763,7 +800,7 @@ func _make_empty_slot() -> Dictionary:
 	return {"pot_id": "", "seed_id": "", "planted_unix": 0, "done": false}
 
 
-## 在指定槽放入一个花盆（从 inventory[PLACEABLE] 取 1 个）。仅空槽（无盆）可放。返回是否成功。
+## 在指定槽放入一个花盆（从 inventory 取 1 个可摆放的盆，pot_id 指向 is_placeable 物品）。仅空槽（无盆）可放。返回是否成功。
 func place_pot(slot: int, pot_id: String) -> bool:
 	if slot < 0 or slot >= farm_slots.size():
 		return false
@@ -789,8 +826,8 @@ func plant(slot: int, seed_id: String) -> bool:
 		return false                       # 没有盆不能种
 	if not s.get("seed_id", "").is_empty():
 		return false                       # 已种，先 harvest/clear 再种
-	var seed: SeedData = get_item(seed_id)
-	if seed == null or not (seed is SeedData):
+	var sd: SeedData = get_item(seed_id)
+	if sd == null or not (sd is SeedData):
 		return false                       # 未注册或不是种子
 	if not has_item(seed_id):
 		return false                       # 库存没有该种子
@@ -812,11 +849,11 @@ func compute_stage(slot: int) -> int:
 	var seed_id: String = s.get("seed_id", "")
 	if seed_id.is_empty():
 		return -1
-	var seed: SeedData = get_item(seed_id)
-	if seed == null or not (seed is SeedData):
+	var sd: SeedData = get_item(seed_id)
+	if sd == null or not (sd is SeedData):
 		return -1
 	var grown_min := (Time.get_unix_time_from_system() - float(s.get("planted_unix", 0))) / 60.0
-	return seed.stage_at(grown_min)
+	return sd.stage_at(grown_min)
 
 
 ## 是否成熟（可采摘）。
@@ -834,17 +871,17 @@ func get_growth_info(slot: int) -> Dictionary:
 	var seed_id: String = s.get("seed_id", "")
 	if seed_id.is_empty():
 		return {}
-	var seed: SeedData = get_item(seed_id)
-	if seed == null or not (seed is SeedData):
+	var sd: SeedData = get_item(seed_id)
+	if sd == null or not (sd is SeedData):
 		return {}
-	var s_min := float(maxi(1, seed.sprout_minutes))
-	var g_min := float(maxi(1, seed.growing_minutes))
-	var m_min := float(maxi(1, seed.mature_minutes))
-	var t_sprout := s_min * 60.0
-	var t_grow := (s_min + g_min) * 60.0
+	var s_min := float(maxi(1, sd.sprout_minutes))
+	var g_min := float(maxi(1, sd.growing_minutes))
+	var m_min := float(maxi(1, sd.mature_minutes))
+	var _t_sprout := s_min * 60.0
+	var _t_grow := (s_min + g_min) * 60.0
 	var t_mature := (s_min + g_min + m_min) * 60.0
 	var elapsed := float(Time.get_unix_time_from_system() - float(s.get("planted_unix", 0)))
-	var stage := seed.stage_at(elapsed / 60.0)
+	var stage := sd.stage_at(elapsed / 60.0)
 	var names := ["苗", "成长", "成熟"]
 	return {
 		"stage": stage,
@@ -856,17 +893,17 @@ func get_growth_info(slot: int) -> Dictionary:
 	}
 
 
-## 采摘：成熟槽产出 crop_output_id 进 inventory[CROP]，清空种子状态（花盆保留，可立即重种）。返回是否成功。
+## 采摘：成熟槽产出 crop_output（直接引用的 CROP 物品）进 inventory[CROP]，清空种子状态（花盆保留，可立即重种）。返回是否成功。
 func harvest(slot: int) -> bool:
 	if slot < 0 or slot >= farm_slots.size():
 		return false
 	if not is_slot_mature(slot):
 		return false
 	var s: Dictionary = farm_slots[slot]
-	var seed: SeedData = get_item(s.get("seed_id", ""))
-	if seed == null or not (seed is SeedData) or seed.crop_output_id.is_empty():
+	var sd: SeedData = get_item(s.get("seed_id", ""))
+	if sd == null or not (sd is SeedData) or sd.crop_output == null:
 		return false
-	add_item(seed.crop_output_id, 1)     # 作物按 category=CROP 进库存
+	add_item(sd.crop_output.id, 1)     # 作物按 category=CROP 进库存（inventory 仍用 id key；关系本身已是直接引用）
 	s["seed_id"] = ""
 	s["planted_unix"] = 0
 	s["done"] = false
@@ -875,7 +912,7 @@ func harvest(slot: int) -> bool:
 	return true
 
 
-## 清空槽：花盆退回 inventory[PLACEABLE]，重置种子状态（回收花盆用）。返回是否成功。
+## 清空槽：花盆退回 inventory（作为 is_placeable 物品回收），重置种子状态（回收花盆用）。返回是否成功。
 func clear_slot(slot: int) -> bool:
 	if slot < 0 or slot >= farm_slots.size():
 		return false
@@ -1000,9 +1037,9 @@ func sell_from_rack(slot: int) -> int:
 
 ## 返回可上架服装 [{id, data, available}]，available = 拥有 − 穿戴 > 0
 func get_displayable_clothing() -> Array:
-	# 上架约束（需求）：展架仅接受衣物（CLOTHING）。植物/作物/材料/制作物等
-	# 不属于衣物，get_by_category 按 category 过滤后本就不会进入此列表，
-	# 故展架天然只显示衣物，无法上架其他类别。
+	# 上架约束（需求）：展架仅接受衣物（CLOTHING）。种子/作物/材料/摆放物
+	# 不属于衣物，get_by_category(CLOTHING) 按 category 过滤（且默认跳过 is_placeable）
+	# 后本就不会进入此列表，故展架天然只显示衣物，无法上架其他类别。
 	var out: Array = []
 	for entry in get_by_category(ItemData.Category.CLOTHING):
 		var id: String = entry["data"].id

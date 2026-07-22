@@ -10,12 +10,13 @@ extends Control
 @onready var _make_list: VBoxContainer = $Bg/Layout/MakeScroll/MakeList
 @onready var _decompose_list: VBoxContainer = $Bg/Layout/DecomposeScroll/DecomposeList
 
-const _CARD_BG := Color(0.22, 0.18, 0.15, 1)
-const _CARD_BORDER := Color(0.42, 0.36, 0.28, 1)
-const _LOCKED_COL := Color(0.62, 0.58, 0.54, 1)
-const _ACCENT_BG := Color(0.50, 0.38, 0.18, 1)      ## 暖金（按钮 / 当前页高亮底）
-const _DIM := Color(0.50, 0.46, 0.42, 1)            ## 禁用 / 非激活灰
-const _TEXT := Color(0.92, 0.88, 0.82, 1)           ## 主文字
+## 颜色统一取自 UITheme（scripts/ui_theme.gd），换肤只改一处。
+const _CARD_BG := UITheme.BG_SURFACE
+const _CARD_BORDER := UITheme.BORDER
+const _LOCKED_COL := UITheme.TEXT_DIM
+const _ACCENT_BG := UITheme.BG_ACCENT
+const _DIM := UITheme.TEXT_DIM
+const _TEXT := UITheme.TEXT_PRIMARY
 
 var _active: String = "make"     # "make" | "decompose"
 
@@ -54,9 +55,9 @@ func _style_tab(btn: Button, active: bool) -> void:
 	sb.set_content_margin_all(6)
 	if active:
 		sb.bg_color = _ACCENT_BG
-		btn.add_theme_color_override("font_color", Color(1.0, 0.95, 0.85, 1))
+		btn.add_theme_color_override("font_color", UITheme.TEXT_PRIMARY)
 	else:
-		sb.bg_color = Color(0.28, 0.24, 0.20, 1)
+		sb.bg_color = UITheme.BG_SURFACE
 		btn.add_theme_color_override("font_color", _DIM)
 	btn.add_theme_stylebox_override("normal", sb)
 	btn.add_theme_stylebox_override("hover", sb)
@@ -102,7 +103,7 @@ func _render_make() -> void:
 
 func _build_blueprint_card(bp: BlueprintData) -> Panel:
 	var ok := _materials_sufficient(bp)
-	var sub := "材料：" + bp.materials_text(func(id): return GameManager.get_item(id))
+	var sub := "材料：" + bp.materials_text()
 	return _make_card(bp.icon, bp.display_name, sub, ("制作" if ok else "材料不足"), ok, _on_craft.bind(bp.id))
 
 
@@ -111,8 +112,8 @@ func _build_locked_card(bp: BlueprintData) -> Panel:
 	p.custom_minimum_size = Vector2(0, 52)
 	p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.18, 0.15, 0.13, 1)
-	sb.border_color = Color(0.30, 0.27, 0.23, 1)
+	sb.bg_color = UITheme.BG_PANEL
+	sb.border_color = UITheme.BORDER
 	sb.set_border_width_all(1)
 	sb.set_corner_radius_all(8)
 	sb.set_content_margin_all(10)
@@ -202,7 +203,7 @@ func _make_card(icon: Texture2D, name_text: String, sub_text: String, btn_text: 
 		var sub_l := Label.new()
 		sub_l.text = sub_text
 		sub_l.add_theme_font_size_override("font_size", 12)
-		sub_l.add_theme_color_override("font_color", Color(0.78, 0.74, 0.66, 1))
+		sub_l.add_theme_color_override("font_color", UITheme.TEXT_MUTED)
 		info.add_child(sub_l)
 
 	var btn := Button.new()
@@ -222,9 +223,9 @@ func _style_action_btn(btn: Button, enabled: bool) -> void:
 	sb.set_content_margin_all(6)
 	if enabled:
 		sb.bg_color = _ACCENT_BG
-		btn.add_theme_color_override("font_color", Color(1.0, 0.95, 0.85, 1))
+		btn.add_theme_color_override("font_color", UITheme.TEXT_PRIMARY)
 	else:
-		sb.bg_color = Color(0.26, 0.23, 0.20, 1)
+		sb.bg_color = UITheme.BG_SURFACE
 		btn.add_theme_color_override("font_color", _DIM)
 	btn.add_theme_stylebox_override("normal", sb)
 	btn.add_theme_stylebox_override("hover", sb)
@@ -253,14 +254,10 @@ func _clear(list: VBoxContainer) -> void:
 # ───────────────────────── 数据辅助 ─────────────────────────
 
 func _materials_sufficient(bp: BlueprintData) -> bool:
-	for e in bp.required_materials:
-		if not e is Dictionary:
+	for mc in bp.required_materials:
+		if mc == null or mc.item == null or mc.count <= 0:
 			continue
-		var iid: String = str(e.get("item_id", ""))
-		var n: int = int(e.get("count", 0))
-		if iid.is_empty() or n <= 0:
-			continue
-		if GameManager.get_count(iid) < n:
+		if GameManager.get_count(mc.item.id) < mc.count:
 			return false
 	return true
 

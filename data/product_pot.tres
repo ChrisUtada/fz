@@ -7,6 +7,8 @@
 script = ExtResource("1_prod")
 id = "pot"
 display_name = "花盆"
+category = 4
 description = "种花用的花盆，在种植屏放入槽位（也可摆到桌面作装饰）"
 price = 20
+garden_placement = true
 placeable_scene = ExtResource("2_scene")

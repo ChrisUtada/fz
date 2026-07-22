@@ -1,15 +1,14 @@
-[gd_resource type="Resource" script_class="ProductData" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="ProductData" format=3 uid="uid://ia2eawwkaupb"]
 
-[ext_resource type="Script" path="res://scripts/resources/product_data.gd" id="1_prod"]
+[ext_resource type="Script" uid="uid://dxqekno6lxle8" path="res://scripts/resources/product_data.gd" id="1_prod"]
 [ext_resource type="PackedScene" path="res://scenes/placeable/desk.tscn" id="2_scene"]
 
 [resource]
 script = ExtResource("1_prod")
+delivery_minutes = 15
 id = "desk"
 display_name = "桌子"
-price = 80
-delivery_minutes = 15
+category = 4
 description = "宽敞的书桌"
-world_texture = null
-base_scale = 1.0
+price = 80
 placeable_scene = ExtResource("2_scene")

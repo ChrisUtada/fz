@@ -15,15 +15,15 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_wardrobe")
 
-[node name="Bg" type="ColorRect" parent="."]
+[node name="Bg" type="ColorRect" parent="." unique_id=1314345757]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.15, 0.12, 0.1, 1)
 mouse_filter = 2
+color = Color(0.15, 0.12, 0.1, 1)
 
 [node name="CharacterArea" type="Control" parent="." unique_id=1330530816]
 anchors_preset = 0
@@ -65,7 +65,7 @@ offset_left = 12.0
 offset_top = 8.0
 offset_right = 100.0
 offset_bottom = 32.0
-text = "背包"
+text = "衣橱"
 
 [node name="GridContainer" type="GridContainer" parent="BackpackArea" unique_id=1402500533]
 layout_mode = 1

@@ -1,10 +1,11 @@
-[gd_resource type="Resource" script_class="SeedData" format=3 uid="uid://dc4vly6l7m38f"]
+[gd_resource type="Resource" script_class="SeedData" load_steps=3 format=3 uid="uid://dc4vly6l7m38f"]
 
 [ext_resource type="Script" uid="uid://y588secnesqd" path="res://scripts/resources/seed_data.gd" id="1_seed"]
+[ext_resource type="Resource" path="res://data/crops/crop_rose.tres" id="2_crop"]
 
 [resource]
 script = ExtResource("1_seed")
-crop_output_id = "rose"
+crop_output = ExtResource("2_crop")
 id = "rose_seed"
 display_name = "玫瑰种子"
 category = 1

@@ -84,7 +84,15 @@ func _ready() -> void:
 	for s in seed_pool:
 		GameManager.register_item(s)
 	_register_item_resources()
-	GameManager.seed_starter_farm(_seed_ids(), "pot", 2)
+	# 起始花盆 id：从产品池按 garden_placement 标志自动识别（不再写死 "pot"），找不到时兜底历史 id
+	var pot_id_for_seed: String = ""
+	for p in product_pool:
+		if p != null and p.garden_placement:
+			pot_id_for_seed = p.id
+			break
+	if pot_id_for_seed.is_empty():
+		pot_id_for_seed = "pot"
+	GameManager.seed_starter_farm(_seed_ids(), pot_id_for_seed, 2)
 	# 阶段 2.4：发放工坊起始材料（红染料、纤维、可分解作物），走通 分解→材料→制作
 	GameManager.seed_starter_workshop({
 		"red_dye": 3,
@@ -446,6 +454,7 @@ func _on_rack_opened() -> void:
 func _open_rack_panel() -> void:
 	if _has_rack_panel():
 		return
+	GameManager.register_interrupt()   ## 番茄钟进行中打开上架面板=分心
 	var scene := preload("res://scenes/rack_panel.tscn")
 	var panel: Control = scene.instantiate()
 	add_child(panel)
@@ -477,6 +486,7 @@ func _on_phone_pressed() -> void:
 func _open_phone_panel() -> void:
 	if _has_phone_panel():
 		return
+	GameManager.register_interrupt()   ## 番茄钟进行中打开订单中心=分心
 	var scene := preload("res://scenes/phone_panel.tscn")
 	var panel: Control = scene.instantiate()
 	panel.product_pool = product_pool
@@ -493,6 +503,7 @@ func _on_phone_shop_requested() -> void:
 func _open_catalog() -> void:
 	if _has_catalog():
 		return
+	GameManager.register_interrupt()   ## 番茄钟进行中打开商城=分心
 	var scene := preload("res://scenes/product_catalog.tscn")
 	var panel: Control = scene.instantiate()
 	panel.product_pool = product_pool
@@ -558,12 +569,21 @@ func _setup_screens() -> void:
 	tab_bar.tab_selected.connect(_on_tab_selected)
 	# 屏变化 → 回灌 TabBar 高亮（home/farm/wardrobe/workshop）
 	screen_manager.screen_changed.connect(tab_bar.set_active)
+	# 番茄钟拦截：进行中离开灵感活动去任一子屏记打断
+	screen_manager.screen_changed.connect(_on_screen_changed)
 	# 步骤 1.5：活动面板左右箭头导航（贴在屏两侧，绘制在屏之上，家园态/仓库浮层时隐藏）
 	_arrow_nav = preload("res://scenes/arrow_nav.tscn").instantiate()
 	add_child(_arrow_nav)                      ## 挂到 Main：绘制序在 screens_root / tab_bar 之上
 	_arrow_nav.setup(screen_manager)
 	# 初始进入家园态并高亮「家园」tab
 	screen_manager.go_home()
+
+
+## 番茄钟拦截：进行中离开灵感活动去任一子屏（种植/换装/工坊）记一次打断。
+## home 为基地默认态不记；灵感面板/专注条本身不触发 screen_changed。
+func _on_screen_changed(id: String) -> void:
+	if id == "farm" or id == "wardrobe" or id == "workshop":
+		GameManager.register_interrupt()
 
 
 ## 换装屏：实例化换装场景作为常驻切屏内容。
@@ -616,6 +636,7 @@ func _toggle_warehouse_global() -> void:
 func _open_warehouse_global() -> void:
 	if _has_warehouse():
 		return
+	GameManager.register_interrupt()   ## 番茄钟进行中打开仓库=分心
 	var scene := preload("res://scenes/warehouse_panel.tscn")
 	var panel: Control = scene.instantiate()
 	panel.placement_requested.connect(_on_placement_requested)
@@ -645,7 +666,7 @@ func _make_placeholder_screen(title: String) -> Control:
 	bg.offset_left = 28.0                            ## 步骤 1.5：左右留 gutter，避免被箭头遮挡
 	bg.offset_right = -28.0
 	bg.offset_bottom = -52.0                          ## 让出底部 52px 招牌栏
-	bg.color = Color(0.16, 0.13, 0.11, 0.94)
+	bg.color = UITheme.BG_PANEL
 	bg.mouse_filter = Control.MOUSE_FILTER_STOP
 	root.add_child(bg)
 	var label := Label.new()
@@ -657,7 +678,7 @@ func _make_placeholder_screen(title: String) -> Control:
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	label.add_theme_color_override("font_color", Color(0.95, 0.92, 0.88))
+	label.add_theme_color_override("font_color", UITheme.TEXT_PRIMARY)
 	root.add_child(label)
 	return root
 

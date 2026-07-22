@@ -1,15 +1,13 @@
-[gd_resource type="Resource" script_class="ProductData" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="ProductData" format=3 uid="uid://10gtnmd6fi1m"]
 
-[ext_resource type="Script" path="res://scripts/resources/product_data.gd" id="1_prod"]
+[ext_resource type="Script" uid="uid://dxqekno6lxle8" path="res://scripts/resources/product_data.gd" id="1_prod"]
 [ext_resource type="PackedScene" path="res://scenes/placeable/chair.tscn" id="2_scene"]
 
 [resource]
 script = ExtResource("1_prod")
 id = "chair"
 display_name = "椅子"
-price = 30
-delivery_minutes = 5
+category = 4
 description = "一把舒适的木椅"
-world_texture = null
-base_scale = 1.0
+price = 30
 placeable_scene = ExtResource("2_scene")

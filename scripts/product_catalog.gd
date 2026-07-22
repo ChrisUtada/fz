@@ -10,11 +10,9 @@ extends Control
 const LIST_VIEW := 0
 const CONFIRM_VIEW := 1
 
-## 文字配色：卡片背景是浅米色，Godot 默认字体色偏浅→浅底浅字看不清，
-## 故所有文字显式覆盖为深色；「金币不足」禁用态用偏红色，既可见又提示不可购买。
-const TEXT_DARK := Color(0.14, 0.12, 0.10)
-const TEXT_MUTED := Color(0.40, 0.36, 0.30)
-const TEXT_DISABLED := Color(0.72, 0.26, 0.20)
+## 文字配色：弹窗背景统一深棕（UITheme.BG_PANEL），故所有文字用浅米色高对比；
+## 「金币不足」禁用态用偏红（UITheme.TEXT_DISABLED），既可见又提示不可购买。
+## 颜色统一取自 UITheme，换肤只改 scripts/ui_theme.gd 一处。
 
 @export var product_pool: Array[ProductData] = []
 @export var seed_pool: Array[SeedData] = []      ## 阶段 2.3：种子商品（与产品同列，单独分区）
@@ -33,6 +31,9 @@ var _pending: ItemData
 
 
 func _ready() -> void:
+	var bg := get_node_or_null("Card/Bg") as ColorRect
+	if bg != null:
+		bg.color = UITheme.BG_PANEL
 	_close_button.pressed.connect(_on_close)
 	_confirm_ok.pressed.connect(_on_confirm_ok)
 	_confirm_cancel.pressed.connect(_show_list)
@@ -52,19 +53,19 @@ func _ready() -> void:
 
 # ═══════════════════ 文字配色 ═══════════════════
 
-## 给 Label 覆盖深色字体（浅底可读）
+## 给 Label 覆盖浅米字（深棕底高对比可读）
 func _style_label(l: Label) -> void:
-	l.add_theme_color_override("font_color", TEXT_DARK)
+	l.add_theme_color_override("font_color", UITheme.TEXT_PRIMARY)
 
 
-## 给 Button 覆盖各状态字体色：默认 Godot 主题按钮各态字色也偏浅，需逐态覆盖，
-## 尤其 font_disabled_color——否则「金币不足」禁用态灰白不可见。
+## 给 Button 覆盖各状态字体色：统一浅米字；font_disabled_color 用偏红，
+## 让「金币不足」禁用态更直观（否则退回默认灰白也可辨，但红字提示更明确）。
 func _style_button(b: Button) -> void:
-	b.add_theme_color_override("font_color", TEXT_DARK)
-	b.add_theme_color_override("font_hover_color", TEXT_DARK)
-	b.add_theme_color_override("font_pressed_color", TEXT_DARK)
-	b.add_theme_color_override("font_focus_color", TEXT_DARK)
-	b.add_theme_color_override("font_disabled_color", TEXT_DISABLED)
+	b.add_theme_color_override("font_color", UITheme.TEXT_PRIMARY)
+	b.add_theme_color_override("font_hover_color", UITheme.TEXT_PRIMARY)
+	b.add_theme_color_override("font_pressed_color", UITheme.TEXT_PRIMARY)
+	b.add_theme_color_override("font_focus_color", UITheme.TEXT_PRIMARY)
+	b.add_theme_color_override("font_disabled_color", UITheme.TEXT_DISABLED)
 
 
 # ═══════════════════ 数据驱动 ═══════════════════
@@ -149,7 +150,7 @@ func _make_icon(item: ItemData) -> Control:
 		tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		return tex
 	var ph := ColorRect.new()
-	ph.color = Color(0.7, 0.7, 0.7)
+	ph.color = UITheme.BG_SURFACE
 	ph.custom_minimum_size = Vector2(32, 32)
 	return ph
 

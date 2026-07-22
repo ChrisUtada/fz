@@ -1,32 +1,30 @@
-[gd_scene format=3 load_steps=2]
+[gd_scene format=3 uid="uid://c7urj2e5tkjqb"]
 
-[ext_resource type="Script" path="res://scripts/workshop_screen.gd" id="1_ws"]
+[ext_resource type="Script" uid="uid://di5jugntviobl" path="res://scripts/workshop_screen.gd" id="1_ws"]
 
-[node name="WorkshopScreen" type="Control"]
+[node name="WorkshopScreen" type="Control" unique_id=366351616]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-mouse_filter = 0
 script = ExtResource("1_ws")
 
-[node name="Bg" type="ColorRect" parent="."]
+[node name="Bg" type="ColorRect" parent="." unique_id=317424879]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 28.0
-offset_right = -28.0
 offset_top = 8.0
+offset_right = -28.0
 offset_bottom = -52.0
 grow_horizontal = 2
 grow_vertical = 2
-mouse_filter = 0
 color = Color(0.16, 0.13, 0.11, 1)
 
-[node name="Layout" type="VBoxContainer" parent="Bg"]
+[node name="Layout" type="VBoxContainer" parent="Bg" unique_id=508540286]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -39,47 +37,47 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/separation = 10
 
-[node name="Title" type="Label" parent="Bg/Layout"]
+[node name="Title" type="Label" parent="Bg/Layout" unique_id=756044567]
 layout_mode = 2
-text = "工坊"
 theme_override_colors/font_color = Color(0.95, 0.92, 0.88, 1)
 theme_override_font_sizes/font_size = 22
+text = "工坊"
 
-[node name="SubTabs" type="HBoxContainer" parent="Bg/Layout"]
+[node name="SubTabs" type="HBoxContainer" parent="Bg/Layout" unique_id=704496937]
 layout_mode = 2
 size_flags_vertical = 0
 theme_override_constants/separation = 10
 
-[node name="MakeBtn" type="Button" parent="Bg/Layout/SubTabs"]
+[node name="MakeBtn" type="Button" parent="Bg/Layout/SubTabs" unique_id=100621208]
+custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
 size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 42)
 text = "制作"
 
-[node name="DecomposeBtn" type="Button" parent="Bg/Layout/SubTabs"]
+[node name="DecomposeBtn" type="Button" parent="Bg/Layout/SubTabs" unique_id=400104929]
+custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
 size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 42)
 text = "分解"
 
-[node name="MakeScroll" type="ScrollContainer" parent="Bg/Layout"]
+[node name="MakeScroll" type="ScrollContainer" parent="Bg/Layout" unique_id=197140956]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 
-[node name="MakeList" type="VBoxContainer" parent="Bg/Layout/MakeScroll"]
+[node name="MakeList" type="VBoxContainer" parent="Bg/Layout/MakeScroll" unique_id=249227790]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 theme_override_constants/separation = 8
 
-[node name="DecomposeScroll" type="ScrollContainer" parent="Bg/Layout"]
+[node name="DecomposeScroll" type="ScrollContainer" parent="Bg/Layout" unique_id=1186469170]
+visible = false
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
-visible = false
 
-[node name="DecomposeList" type="VBoxContainer" parent="Bg/Layout/DecomposeScroll"]
+[node name="DecomposeList" type="VBoxContainer" parent="Bg/Layout/DecomposeScroll" unique_id=705976151]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3

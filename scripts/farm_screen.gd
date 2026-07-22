@@ -7,7 +7,7 @@ extends Control
 const COLS := 3
 const SLOT_COUNT := 6
 
-@export var pot_id: String = "pot"            ## 功能花盆的物品 id（与 data/product_pot.tres 对齐）
+@export var pot_id: String = ""              ## 功能花盆 id 覆盖；留空则按 ItemData.garden_placement 标志自动识别首个可用花盆（推荐留空）
 
 signal shop_requested                          ## 资源不足时请求打开商城（main 接 _on_phone_shop_requested）
 
@@ -35,7 +35,7 @@ func _make_slot(i: int) -> Panel:
 	p.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	## 微弱底色区分格子（深棕面板上的稍浅棕）
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.22, 0.18, 0.15, 1)
+	sb.bg_color = UITheme.BG_SURFACE
 	sb.set_corner_radius_all(4)
 	sb.set_content_margin_all(6)
 	p.add_theme_stylebox_override("panel", sb)
@@ -50,7 +50,9 @@ func _make_slot(i: int) -> Panel:
 
 
 func _content(slot: Panel) -> VBoxContainer:
-	return slot.get_meta("vbox", null)
+	if not slot.has_meta("vbox"):
+		return null
+	return slot.get_meta("vbox")
 
 
 func _on_farm_changed() -> void:
@@ -96,7 +98,8 @@ func _rebuild_slot(i: int) -> void:
 
 func _build_empty(slot: Panel, i: int) -> void:
 	var vbox := _content(slot)
-	if GameManager.get_count(pot_id) > 0:
+	var pid := _resolve_pot_id()
+	if not pid.is_empty() and GameManager.get_count(pid) > 0:
 		_add_button(vbox, "＋ 放花盆", _on_place_pot.bind(i))
 	else:
 		_add_label(vbox, "空槽")
@@ -168,11 +171,22 @@ func _emit_shop() -> void:
 	shop_requested.emit()
 
 
+## 解析当前可用花盆 id：优先用导出覆盖 pot_id，否则按 garden_placement 标志自动取首个库存>0 的园艺盆
+func _resolve_pot_id() -> String:
+	if not pot_id.is_empty():
+		return pot_id
+	for e in GameManager.get_garden_pots():
+		if e["count"] > 0:
+			return e["data"].id
+	return ""
+
+
 func _on_place_pot(i: int) -> void:
-	if GameManager.get_count(pot_id) <= 0:
+	var pid := _resolve_pot_id()
+	if pid.is_empty() or GameManager.get_count(pid) <= 0:
 		_emit_shop()
 		return
-	GameManager.place_pot(i, pot_id)
+	GameManager.place_pot(i, pid)
 
 
 func _on_plant(i: int, seed_id: String) -> void:
@@ -193,21 +207,22 @@ func _process(_delta: float) -> void:
 		return
 	for i in range(SLOT_COUNT):
 		var slot: Panel = _slot_nodes[i]
-		var st: int = slot.get_meta("state", -1)
+		if not slot.has_meta("state"):
+			continue
+		var st: int = slot.get_meta("state")
 		if st == 2:
-			var bar = slot.get_meta("progress", null)
-			var rem = slot.get_meta("remain", null)
 			var info: Dictionary = GameManager.get_growth_info(i)
 			if info.is_empty():
 				continue
-			if bar != null:
-				bar.value = info.get("progress", 0.0) * 100.0
-			if rem != null:
-				rem.text = "剩余 %s" % _fmt_time(info.get("remaining_sec", 0.0))
+			if slot.has_meta("progress"):
+				slot.get_meta("progress").value = info.get("progress", 0.0) * 100.0
+			if slot.has_meta("remain"):
+				slot.get_meta("remain").text = "剩余 %s" % _fmt_time(info.get("remaining_sec", 0.0))
 		elif st == 3:
-			var rem = slot.get_meta("remain", null)
-			if rem != null:
-				rem.text = "可采摘"
+			# 成熟槽由 _build_mature 静态展示"成熟！可采摘"，不保证有 rem 标签，
+			# 故用 has_meta 守卫，避免 get_meta(key, null) 在 key 缺失时 ERR_FAIL。
+			if slot.has_meta("remain"):
+				slot.get_meta("remain").text = "可采摘"
 
 
 func _fmt_time(sec: float) -> String:
