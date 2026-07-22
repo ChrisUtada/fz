@@ -16,6 +16,24 @@ func setup(item_data: ClothesData) -> void:
 			_data.price,
 			_data.inspiration_value
 		]
+		# 正穿着的衣服在衣橱格子标注「穿戴中」，明确状态（也解释为何展架可售为 0）。
+		# 衣橱只谈收藏与穿着，不显示库存数量，避免与仓库产生认知分歧。
+		if GameManager.is_worn(_data.id):
+			_add_worn_badge()
+
+
+## 在格子右上角叠加「穿戴中」角标
+func _add_worn_badge() -> void:
+	var worn := Label.new()
+	worn.name = "WornBadge"
+	worn.text = "穿戴中"
+	worn.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	worn.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	worn.add_theme_font_size_override("font_size", 11)
+	worn.add_theme_color_override("font_color", UITheme.TEXT_GOLD)
+	worn.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	worn.position = Vector2(-2, 2)
+	add_child(worn)
 
 
 ## Godot 拖放系统：拖拽开始时返回数据（由父节点 Control 拖放管线调用）

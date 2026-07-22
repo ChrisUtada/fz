@@ -7,6 +7,8 @@ export/
 /android/export/
 /build/
 bin/
+# GDExtension 预编译运行时（虽在 bin/ 下，但属必需依赖，需入库；否则克隆后扩展加载失败）
+!addons/godot_global_input/src/bin/
 # 导出的游戏包（重新导出即得，不入库）
 *.pck
 

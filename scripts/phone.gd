@@ -2,13 +2,13 @@ extends Control
 ## Phone · 桌面电话摆件（精简版）
 ##
 ## 桌面常驻物件（挂在 Main 的 Panel 下）。职责缩为两项：
-##   - 显示「已到货 N 件 · 双击查看」提醒（有到货时）
-##   - 「双击」左键 = 打开订单中心（emit phone_pressed，由 Main 编排）
+##   - 显示「已到货 N 件 · 单击查看」提醒（有到货时）
+##   - 「单击」左键 = 打开订单中心（emit phone_pressed，由 Main 编排）
 ##   进行中订单的进度条/倒计时已移入订单中心弹窗（phone_panel）。
 ##
 ## 计时与订单数据由 GameManager 持有（墙钟 + 存档，离线到货），本摆件只负责显示。
 ## 实现 contains_point 供 Main 的拖窗口守卫使用（点击电话不拖窗口）。
-## 交互：在电话上「按下并拖动」= 移动位置（松手存档）；「双击」左键 = 打开订单中心。
+## 交互：在电话上「按下并拖动」= 移动位置（松手存档）；「单击」左键 = 打开订单中心。
 ##       鼠标过滤由 _input + contains_point 自判命中，与顾客/宠物一致，不依赖子节点
 ##       mouse_filter。
 
@@ -37,7 +37,7 @@ func _ready() -> void:
 ## 阻止事件继续传播（Main._input 因此不会把这次点击误当成窗口拖拽）。
 ##
 ## 状态机：
-##   press(命中)  → _pressed=true；若 ev.double_click 则打开 UI
+##   press(命中)  → _pressed=true；release 时若未拖动(纯点击)则打开 UI
 ##   motion(_pressed) → 用「鼠标位移」越过阈值即置 _dragging，随后跟随鼠标移动位置
 ##   release      → 若 _dragging 则存档；清空 _pressed/_dragging
 ## 关键陷阱：阈值判定必须基于「鼠标位移」，不能用 global_position（电话自身位置）——
@@ -46,7 +46,7 @@ func _ready() -> void:
 ## 全局 release 事件导致其它弹窗按钮（需 press+release）全部点不动。
 func _input(ev: InputEvent) -> void:
 	# 覆盖层弹窗打开时不抢占点击（同 customer.gd，避免吃掉弹窗按钮的点击）。
-	# 关键：必须先清空拖动态再 return——否则「双击打开订单中心」那次的 release 会被本守卫
+	# 关键：必须先清空拖动态再 return——否则「单击打开订单中心」那次的 release 会被本守卫
 	# 吞掉，_pressed 残留为 true；关闭弹窗后鼠标一动即触发「幽灵拖动」，电话跳到指针处。
 	if GameManager.is_modal_open():
 		_pressed = false
@@ -60,9 +60,8 @@ func _input(ev: InputEvent) -> void:
 				_dragging = false
 				_press_mouse = m
 				_drag_offset = global_position - m
-				# 双击左键 = 打开订单中心（emit 后让 Main 编排）
-				if ev.double_click:
-					phone_pressed.emit()
+				# 命中电话即接管事件，避免穿透到窗口拖拽；
+				# 真正「打开」推迟到 release 判定（纯点击=开，拖动=移动）。
 				get_viewport().set_input_as_handled()
 		else:
 			# 松开：仅当这次确实是一次电话按下（_pressed）时才处理+消费事件，
@@ -70,6 +69,9 @@ func _input(ev: InputEvent) -> void:
 			if _pressed:
 				if _dragging:
 					_save_position()
+				else:
+					# 纯单击（位移未越过拖动阈值）= 打开订单中心
+					phone_pressed.emit()
 				_pressed = false
 				_dragging = false
 				get_viewport().set_input_as_handled()
@@ -117,6 +119,6 @@ func _refresh() -> void:
 	var count := GameManager.get_arrived().size()
 	if count > 0:
 		_arrived_label.visible = true
-		_arrived_label.text = "已到货 %d 件 · 双击查看" % count
+		_arrived_label.text = "已到货 %d 件 · 单击查看" % count
 	else:
 		_arrived_label.visible = false

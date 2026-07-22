@@ -111,6 +111,8 @@ func _ready() -> void:
 		if bp != null:
 			GameManager.register_blueprint(bp)
 	_register_item_resources()
+	# 注册表就绪后：旧存档/首启自愈已解锁服装集合（首次运行由 seed_starter_clothing 写入，此处兜底旧版存档）
+	GameManager._ensure_unlocked_clothes()
 	# 起始花盆 id：从产品池按 garden_placement 标志自动识别（不再写死 "pot"），找不到时兜底历史 id
 	var pot_id_for_seed: String = ""
 	for p in product_pool:

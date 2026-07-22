@@ -76,18 +76,15 @@ func _populate_backpack() -> void:
 		_grid_container.add_child(slot)
 
 
-## 返回当前拥有的服装 ClothesData 列表（优先读统一 inventory；空时回退 clothes_pool）
+## 衣橱 = 永久收藏：读 GameManager.unlocked_clothes（已解锁/已制作过的服装）。
+## 与 inventory 当前数量解耦——即使某件售罄归零，也始终留在衣橱里可穿搭；
+## 「拥有多少件」由仓库面板（读 inventory）负责，互不干扰。
 func _owned_clothes() -> Array:
 	var out: Array = []
-	for entry in GameManager.get_by_category(ItemData.Category.CLOTHING):
-		var d = entry["data"]
-		if d is ClothesData:
+	for id in GameManager.unlocked_clothes.keys():
+		var d: ItemData = GameManager.get_item(id)
+		if d != null and d is ClothesData:
 			out.append(d)
-	if out.is_empty():
-		# 兜底：inventory 尚无服装（异常/首启未播种）时退回设计池，保证换装可用
-		for c in clothes_pool:
-			if c != null:
-				out.append(c)
 	return out
 
 

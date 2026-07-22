@@ -57,6 +57,9 @@ func _ready() -> void:
 	_start_button.pressed.connect(_on_start_pressed)
 	_cancel_button.pressed.connect(_on_cancel_pressed)
 	_minimize_btn.pressed.connect(_on_minimize_pressed)
+	# 计数 / 提示文字用主题色（非纯白，提升深色面板可读性）
+	_outing_counts.add_theme_color_override("font_color", UITheme.TEXT_GOLD)
+	_reward_hint.add_theme_color_override("font_color", UITheme.TEXT_SECONDARY)
 	_end_button.pressed.connect(_on_end_pressed)
 	_slider.value_changed.connect(_on_slider_changed)
 	_spinbox.value_changed.connect(_on_spinbox_changed)
@@ -103,7 +106,7 @@ func _add_activity_button(data: ActivityData) -> void:
 	var btn := Button.new()
 	if data != null:
 		if data.mode == ActivityData.Mode.OUTING:
-			btn.text = "%s   ·   按真实键鼠折算灵感" % data.activity_name
+			btn.text = "%s   ·   按真实步数折算灵感" % data.activity_name
 		else:
 			btn.text = "%s   ·   每分钟 +%.1f 灵感" % [data.activity_name, data.inspiration_per_minute]
 	else:
@@ -255,7 +258,7 @@ func _show_summary(reward: Dictionary) -> void:
 		# 外出：无时间条，按真实键鼠折算
 		_countdown_box.visible = false
 		var inputs: int = reward.get("inputs", 0)
-		line = "外出完成 · 键鼠 %d 次 · 灵感 +%d" % [inputs, insp]
+		line = "外出完成 · 步数 %d · 灵感 +%d" % [inputs, insp]
 	else:
 		# 番茄钟：专注 X 分 · 中断 N 次
 		_countdown_box.visible = true
@@ -310,18 +313,18 @@ func _update_outing_counts() -> void:
 		var err := GameManager.get_outing_error()
 		if not err.is_empty():
 			_outing_counts.text = "统计未启动"
-			_reward_hint.text = "输入统计失败：%s\n（可能无管理员权限 / 被安全软件拦截，或 python 路径不可用）" % err
+			_reward_hint.text = "输入统计失败：%s\n（可能无管理员权限 / 被安全软件拦截钩子）" % err
 		else:
 			# Python 冷启动期间（收拾行装）：尚未开始计数，给出明确等待提示而非让玩家误以为坏了
 			_outing_counts.text = "收拾行装中…"
 			_reward_hint.text = "正在收拾行装…（启动输入统计中）"
 		return
-	_outing_counts.text = "键 %d / 鼠 %d 次" % [c.get("keys", 0), c.get("mouse", 0)]
+	_outing_counts.text = "步数 %d" % c.get("total", 0)
 	var per_action := 0.05
 	if _current_activity != null:
 		per_action = _current_activity.inspiration_per_action
 	var est := int(ceil(float(c.get("total", 0)) * per_action - 0.0001))
-	_reward_hint.text = "统计中 · 已输入 %d 次 · 预计 +%d 灵感" % [c.get("total", 0), est]
+	_reward_hint.text = "统计中 · 步数 %d · 预计 +%d 灵感" % [c.get("total", 0), est]
 
 
 func _update_reward_hint() -> void:
