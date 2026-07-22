@@ -116,7 +116,7 @@ func _refresh_counts() -> void:
 			if lbl != null:
 				var show_count := count
 				if e["data"] is ClothesData:
-					show_count = max(0, count - GameManager.get_worn_count(id))
+					show_count = count   # 衣橱与库存分离：直接取在售库存计数
 				lbl.text = "x%d" % show_count
 		else:
 			var cell := _make_cell(e["data"], count)
@@ -146,12 +146,12 @@ func _make_cell(data: ItemData, count: int) -> Control:
 	name_l.position = Vector2(2, 54)
 	name_l.size = Vector2(92, 16)
 	cell.add_child(name_l)
-	# 数量角标（右上）：服装类显示「可上架数」（库存−穿戴），其余显示原始库存
+	# 数量角标（右上）：服装类显示在售库存计数（与衣橱穿戴分离），其余显示原始库存
 	var badge := Label.new()
 	badge.name = "CountBadge"
 	var show_count := count
 	if data is ClothesData:
-		show_count = max(0, count - GameManager.get_worn_count(data.id))
+		show_count = count   # 衣橱与库存分离：数量角标直接取在售库存计数，不再减穿戴数
 	badge.text = "x%d" % show_count
 	badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	badge.add_theme_font_size_override("font_size", 12)

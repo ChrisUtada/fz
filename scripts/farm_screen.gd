@@ -78,6 +78,10 @@ func _rebuild_slot(i: int) -> void:
 		return
 	for c in vbox.get_children():
 		c.queue_free()
+	# 旧 content（含 progress/remain 标签）即将释放，清除其缓存引用，
+	# 否则 _process 仍通过 meta 拿到已 freed 的节点而报 "previously freed"。
+	slot.remove_meta("remain")
+	slot.remove_meta("progress")
 	var s: Dictionary = GameManager.farm_slots[i] if GameManager.farm_slots.size() > i else {}
 	var has_pot: bool = not str(s.get("pot_id", "")).is_empty()
 	var seed_id: String = str(s.get("seed_id", ""))
@@ -201,7 +205,10 @@ func _on_clear(i: int) -> void:
 	GameManager.clear_slot(i)
 
 
-## 逐帧更新生长中槽的进度条与剩余时间（仅 state==2 需要；成熟槽只刷剩余文案）
+## 逐帧更新生长中槽的进度条与剩余时间。仅 state==2（生长中）需要刷新；
+## 其它态（空/有盆/成熟）均为 _build_* 一次性构建的静态展示，无需 _process 干预。
+## 注意：本构建的 get_meta(name, default) 在缺键时仍报 C++ 错误，故一律用
+## has_meta 先判存在、再用 is_instance_valid 防已释放节点，避免两类报错。
 func _process(_delta: float) -> void:
 	if not visible:
 		return
@@ -210,19 +217,23 @@ func _process(_delta: float) -> void:
 		if not slot.has_meta("state"):
 			continue
 		var st: int = slot.get_meta("state")
-		if st == 2:
-			var info: Dictionary = GameManager.get_growth_info(i)
-			if info.is_empty():
-				continue
-			if slot.has_meta("progress"):
-				slot.get_meta("progress").value = info.get("progress", 0.0) * 100.0
-			if slot.has_meta("remain"):
-				slot.get_meta("remain").text = "剩余 %s" % _fmt_time(info.get("remaining_sec", 0.0))
-		elif st == 3:
-			# 成熟槽由 _build_mature 静态展示"成熟！可采摘"，不保证有 rem 标签，
-			# 故用 has_meta 守卫，避免 get_meta(key, null) 在 key 缺失时 ERR_FAIL。
-			if slot.has_meta("remain"):
-				slot.get_meta("remain").text = "可采摘"
+		if st != 2:
+			continue   # 仅生长中态需逐帧刷新
+		# 生长中若已成熟，立即重建为成熟态（否则会一直停在进度条 100% / 剩余 0:00）
+		if GameManager.is_slot_mature(i):
+			_rebuild_slot(i)
+			continue
+		var info: Dictionary = GameManager.get_growth_info(i)
+		if info.is_empty():
+			continue
+		if slot.has_meta("progress"):
+			var bar_node = slot.get_meta("progress")
+			if is_instance_valid(bar_node):
+				bar_node.value = info.get("progress", 0.0) * 100.0
+		if slot.has_meta("remain"):
+			var rem_node = slot.get_meta("remain")
+			if is_instance_valid(rem_node):
+				rem_node.text = "剩余 %s" % _fmt_time(info.get("remaining_sec", 0.0))
 
 
 func _fmt_time(sec: float) -> String:

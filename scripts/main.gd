@@ -16,6 +16,10 @@ extends Control
 # ─── 阶段 0：窗口管理 ───
 var _dragging := false
 var _drag_offset := Vector2i.ZERO
+## 窗口可拖拽区域：仅窗口顶部这条带（像素，相对窗口左上角）。
+## 目的：把"移动窗口"的手势从页面内部区域隔离出来，避免与换装拖拽衣物、
+## 列表滚动等内部手势冲突。想移动窗口就抓窗口顶边。
+const TOP_DRAG_BAND := 30.0
 
 # ─── 阶段 1：顾客生成配置 ───
 @export var first_spawn_delay: float = 1.5          ## 首个顾客出现延迟
@@ -219,9 +223,14 @@ func _input(event: InputEvent) -> void:
 			# 灵感面板已打开时，不响应空白拖拽
 			if _has_inspiration():
 				return
+			# 窗口拖动限定在顶部拖拽带：避免与换装/列表等内部拖拽冲突。
+			# mp 为全局坐标，减去窗口全局位置即得窗口内局部 y；仅顶边 TOP_DRAG_BAND 内可抓。
+			var _win_pos := DisplayServer.window_get_position()
+			if mp.y - _win_pos.y > TOP_DRAG_BAND:
+				return
 			# 空白 → 开始拖拽窗口
 			_dragging = true
-			_drag_offset = DisplayServer.window_get_position() - DisplayServer.mouse_get_position()
+			_drag_offset = _win_pos - DisplayServer.mouse_get_position()
 		else:
 			_dragging = false
 	elif event is InputEventMouseMotion and _dragging:
