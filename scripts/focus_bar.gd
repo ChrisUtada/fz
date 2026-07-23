@@ -11,11 +11,11 @@ signal request_expand     ## 玩家请求恢复游戏主界面
 
 var _focus_mode := false
 
-@onready var _title: Label
-@onready var _countdown: Label
-@onready var _progress: ProgressBar
-@onready var _toggle: Button
-@onready var _cancel_btn: Button
+var _title: Label          ## 子节点均在 _build_children() 中手动 new()，非场景树获取，故不用 @onready
+var _countdown: Label
+var _progress: ProgressBar
+var _toggle: Button
+var _cancel_btn: Button
 
 
 func _ready() -> void:
@@ -126,6 +126,8 @@ func _on_interrupted(_n: int) -> void:
 	_title.text = "⚠ 打断！灵感将减少"
 	_title.add_theme_color_override("font_color", UITheme.TEXT_PRIMARY)
 	await get_tree().create_timer(0.9).timeout
+	if not is_instance_valid(self):   # 等待期间专注条可能被 queue_free（切场景/收起），避免访问已释放实例
+		return
 	add_theme_stylebox_override("panel", _panel_style())
 	_refresh_title()
 
