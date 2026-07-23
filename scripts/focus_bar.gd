@@ -78,7 +78,7 @@ func _refresh_title() -> void:
 
 func _update_dynamic() -> void:
 	var rem := GameManager.get_remaining_sec()
-	_countdown.text = _format_time(rem)
+	_countdown.text = Utils.format_time(rem)
 	var total := GameManager.get_activity_total_sec()
 	if total > 0.0:
 		_progress.value = clampf(100.0 * (1.0 - rem / total), 0.0, 100.0)
@@ -132,11 +132,7 @@ func _on_interrupted(_n: int) -> void:
 	_refresh_title()
 
 
-func _format_time(total_sec: float) -> String:
-	var s := int(ceil(total_sec))
-	var m := s / 60
-	var sec := s % 60
-	return "%02d:%02d" % [m, sec]
+# 时间格式化已统一到 Utils.format_time（见 scripts/utils.gd）
 
 
 func _panel_style() -> StyleBoxFlat:

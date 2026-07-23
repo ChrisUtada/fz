@@ -15,7 +15,6 @@ extends Node2D
 signal pet_tapped
 
 const BASE_SCALE := Vector2(1.0, 1.0)
-const DRAG_THRESHOLD := 4.0
 
 ## 行走参数
 @export var walk_speed: float = 60.0
@@ -72,18 +71,7 @@ func _process(delta: float) -> void:
 
 ## global_pos 是否落在 ClickArea 碰撞形状内
 func contains_point(global_pos: Vector2) -> bool:
-	var space := get_world_2d().direct_space_state
-	var query := PhysicsPointQueryParameters2D.new()
-	query.position = global_pos
-	query.collision_mask = 4
-	query.collide_with_bodies = false
-	query.collide_with_areas = true
-	var results := space.intersect_point(query)
-	for r in results:
-		var hit := r.collider as Area2D
-		if hit == _click_area:
-			return true
-	return false
+	return Utils.point_in_area(global_pos, _click_area, 4)
 
 
 ## 由轻点触发：弹出红心
@@ -149,7 +137,7 @@ func _input(event: InputEvent) -> void:
 
 	elif event is InputEventMouseMotion and _grabbed:
 		var gp := get_global_mouse_position()
-		if not _dragging and gp.distance_to(_press_global) > DRAG_THRESHOLD:
+		if not _dragging and Utils.exceeds_drag_threshold(gp, _press_global):
 			_dragging = true
 			_moved = true
 		if _dragging:

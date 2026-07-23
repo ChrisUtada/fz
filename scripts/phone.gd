@@ -15,7 +15,6 @@ extends Control
 signal phone_pressed()
 
 const SAVE_PATH := "user://phone_pos.cfg"
-const DRAG_THRESHOLD := 4.0   ## 像素：移动超过此距离才判定为拖动，否则算点击
 
 @onready var _arrived_label: Label = $ArrivedLabel
 
@@ -91,7 +90,7 @@ func _input(ev: InputEvent) -> void:
 	elif ev is InputEventMouseMotion and _pressed:
 		# 阈值判定用鼠标位移（_press_mouse），不能用电话自身 global_position——
 		# 后者只在已拖动时才变化，会形成死锁。
-		if get_global_mouse_position().distance_to(_press_mouse) >= DRAG_THRESHOLD:
+		if Utils.exceeds_drag_threshold(get_global_mouse_position(), _press_mouse):
 			_dragging = true
 		if _dragging:
 			global_position = get_global_mouse_position() + _drag_offset

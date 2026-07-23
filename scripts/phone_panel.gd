@@ -71,7 +71,7 @@ func _refresh_ongoing() -> void:
 			var row = _order_rows.get(o["id"])
 			if row != null:
 				row["bar"].value = o["progress"] * 100.0
-				row["time"].text = _format_time(o["remaining_sec"])
+				row["time"].text = Utils.format_time(o["remaining_sec"])
 	_ongoing_empty.visible = orders.is_empty()
 	_ongoing_list.visible = not orders.is_empty()
 
@@ -98,7 +98,7 @@ func _rebuild_ongoing(orders: Array) -> void:
 		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE  # 不截获点击
 
 		var time_l := Label.new()
-		time_l.text = _format_time(o["remaining_sec"])
+		time_l.text = Utils.format_time(o["remaining_sec"])
 		time_l.add_theme_color_override("font_color", UITheme.TEXT_PRIMARY)
 		time_l.custom_minimum_size = Vector2(40, 0)
 
@@ -123,7 +123,7 @@ func _refresh_arrived() -> void:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 8)
 		var p: ProductData = _find_product(a["id"])
-		var icon := _make_icon(p)
+		var icon := Utils.make_icon(p)
 		var name_l := Label.new()
 		name_l.text = a["name"]
 		name_l.add_theme_color_override("font_color", UITheme.TEXT_PRIMARY)
@@ -150,24 +150,10 @@ func _find_product(id: String) -> ProductData:
 	return null
 
 
-func _make_icon(p: ProductData) -> Control:
-	if p != null and p.icon != null:
-		var tex := TextureRect.new()
-		tex.texture = p.icon
-		tex.custom_minimum_size = Vector2(32, 32)
-		tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		return tex
-	var ph := ColorRect.new()
-	ph.color = UITheme.BG_SURFACE
-	ph.custom_minimum_size = Vector2(32, 32)
-	return ph
+# 图标生成已统一到 Utils.make_icon（见 scripts/utils.gd）
 
 
-func _format_time(total_sec: float) -> String:
-	var s := int(ceil(total_sec))
-	var m := s / 60
-	var sec := s % 60
-	return "%02d:%02d" % [int(m), sec]
+# 时间格式化已统一到 Utils.format_time（见 scripts/utils.gd）
 
 
 func _on_close() -> void:

@@ -132,7 +132,7 @@ func _open_activity(data: ActivityData) -> void:
 		return
 	_slider.value = _minutes
 	_spinbox.value = _minutes
-	_countdown_label.text = _format_time(float(_minutes) * 60.0)
+	_countdown_label.text = Utils.format_time(float(_minutes) * 60.0)
 	_update_reward_hint()
 	_show_timer()
 
@@ -194,7 +194,7 @@ func _on_slider_changed(v: float) -> void:
 	_minutes = int(v)
 	if _spinbox.value != _minutes:
 		_spinbox.value = _minutes
-	_countdown_label.text = _format_time(float(_minutes) * 60.0)
+	_countdown_label.text = Utils.format_time(float(_minutes) * 60.0)
 	_update_reward_hint()
 
 
@@ -204,7 +204,7 @@ func _on_spinbox_changed(v: float) -> void:
 	_minutes = int(v)
 	if _slider.value != _minutes:
 		_slider.value = _minutes
-	_countdown_label.text = _format_time(float(_minutes) * 60.0)
+	_countdown_label.text = Utils.format_time(float(_minutes) * 60.0)
 	_update_reward_hint()
 
 
@@ -293,7 +293,7 @@ func _process(_delta: float) -> void:
 
 func _update_countdown_label() -> void:
 	var rem := GameManager.get_remaining_sec()
-	_countdown_label.text = _format_time(rem)
+	_countdown_label.text = Utils.format_time(rem)
 	var base := GameManager.get_pending_reward()
 	var n := GameManager.get_activity_interrupts()
 	var st := GameManager.get_activity_streak()
@@ -337,11 +337,7 @@ func _update_reward_hint() -> void:
 	_reward_hint.text = "预计获得 +%d 灵感值（每分钟 +%.1f）" % [reward, per_min]
 
 
-func _format_time(total_sec: float) -> String:
-	var s := int(ceil(total_sec))
-	var m := s / 60
-	var sec := s % 60
-	return "%02d:%02d" % [int(m), sec]
+# 时间格式化已统一到 Utils.format_time（见 scripts/utils.gd）
 
 
 func _on_close() -> void:

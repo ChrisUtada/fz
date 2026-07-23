@@ -9,7 +9,6 @@ extends Control
 signal rack_opened()
 
 const SAVE_PATH := "user://rack_pos.cfg"
-const DRAG_THRESHOLD := 4.0   ## 像素：移动超过此距离才判定为拖动，否则算点击
 
 var _pressed := false              ## 鼠标左键此刻是否在展架矩形内按住
 var _dragging := false             ## 已越过阈值、正在拖动中
@@ -49,7 +48,7 @@ func _input(ev: InputEvent) -> void:
 				_dragging = false
 				get_viewport().set_input_as_handled()
 	elif ev is InputEventMouseMotion and _pressed:
-		if get_global_mouse_position().distance_to(_press_mouse) >= DRAG_THRESHOLD:
+		if Utils.exceeds_drag_threshold(get_global_mouse_position(), _press_mouse):
 			_dragging = true
 		if _dragging:
 			global_position = get_global_mouse_position() + _drag_offset

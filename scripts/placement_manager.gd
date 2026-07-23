@@ -16,11 +16,13 @@ signal placement_rejected(reason: String)
 var _container: Node2D
 var _data_by_id: Dictionary = {}      # id -> ProductData
 var _pool_ready := false
+var _save_timer: Timer                # 落盘节流（摆放移动频繁，0.5s 合并一次）
 
 
 ## Main._ready 调用：注入产品池与摆放容器，建索引并还原存档
 func init(pool: Array[ProductData], container: Node2D) -> void:
 	_container = container
+	_create_save_timer()
 	for p in pool:
 		if p != null and not p.id.is_empty():
 			_data_by_id[p.id] = p
@@ -56,7 +58,33 @@ func spawn_from_product(data: ProductData) -> void:
 
 
 func _on_placed_moved(_p: Placeable) -> void:
+	_request_save()
+
+
+## 落盘节流：0.5s 内连续的摆放移动只合并保存一次（避免拖拽时每帧写盘卡顿）。
+## 即时存档（spawn / remove）仍直接调 save_placements()，不受此节流影响。
+func _request_save() -> void:
+	if _save_timer != null:
+		_save_timer.start()   # 已运行则重启计时窗口
+
+
+func _flush_save() -> void:
 	save_placements()
+
+
+func _create_save_timer() -> void:
+	_save_timer = Timer.new()
+	_save_timer.name = "SaveDebounceTimer"
+	_save_timer.wait_time = 0.5
+	_save_timer.one_shot = true
+	_save_timer.timeout.connect(_flush_save)
+	add_child(_save_timer)
+
+
+func _exit_tree() -> void:
+	# 退出前补齐尚未触发的节流存档，避免最后 0.5s 内的移动丢失
+	if _save_timer != null and not _save_timer.is_stopped():
+		_flush_save()
 
 
 ## 移除一个摆放物（预留给未来的移除 UI）

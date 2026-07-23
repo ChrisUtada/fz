@@ -113,7 +113,7 @@ func _add_item_row(item: ItemData, delivery_text: String) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 
-	var icon := _make_icon(item)
+	var icon := Utils.make_icon(item)
 	var name_l := Label.new()
 	name_l.text = item.display_name
 	name_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -142,17 +142,7 @@ func _add_item_row(item: ItemData, delivery_text: String) -> void:
 	_product_list.add_child(row)
 
 
-func _make_icon(item: ItemData) -> Control:
-	if item.icon != null:
-		var tex := TextureRect.new()
-		tex.texture = item.icon
-		tex.custom_minimum_size = Vector2(32, 32)
-		tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		return tex
-	var ph := ColorRect.new()
-	ph.color = UITheme.BG_SURFACE
-	ph.custom_minimum_size = Vector2(32, 32)
-	return ph
+# 图标生成已统一到 Utils.make_icon（见 scripts/utils.gd）
 
 
 # ═══════════════════ 购买 / 确认 ═══════════════════

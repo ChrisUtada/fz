@@ -70,6 +70,7 @@ func _on_visibility_changed() -> void:
 ## 每个拥有的 id 展示一个格子；元数据经注册表解析回 ClothesData 取贴图。
 func _populate_backpack() -> void:
 	for child in _grid_container.get_children():
+		_grid_container.remove_child(child)
 		child.queue_free()
 	for item_data in _owned_clothes():
 		var slot: TextureButton = ITEM_SLOT_SCENE.instantiate()
@@ -214,4 +215,5 @@ func _load_outfit() -> void:
 
 
 func _on_close() -> void:
-	queue_free()
+	# wardrobe 是 ScreenManager 常驻切屏，关闭仅隐藏而非销毁（避免销毁后无法再打开）
+	visible = false

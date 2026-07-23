@@ -7,8 +7,19 @@ export/
 /android/export/
 /build/
 bin/
-# GDExtension 预编译运行时（虽在 bin/ 下，但属必需依赖，需入库；否则克隆后扩展加载失败）
+# GDExtension vendored：只入库预编译 dll（运行时必需），源码/构建产物全部忽略
+addons/godot_global_input/godot-cpp/
+addons/godot_global_input/src/*.cpp
+addons/godot_global_input/src/*.h
+addons/godot_global_input/src/SConstruct
+addons/godot_global_input/src/.sconsign.dblite
+addons/godot_global_input/src/register_types.*
+addons/godot_global_input/src/trackers/
+# 仅白名单 src/bin/windows/*.dll（含 MinGW 运行时 libgcc/libstdc++/libwinpthread）
 !addons/godot_global_input/src/bin/
+addons/godot_global_input/src/bin/**
+!addons/godot_global_input/src/bin/windows/
+!addons/godot_global_input/src/bin/windows/*.dll
 # 导出的游戏包（重新导出即得，不入库）
 *.pck
 
@@ -38,6 +49,6 @@ __pycache__/
 *.pyc
 _rawtest.json
 
-# GDExtension 构建/编辑器临时 dll（散落副本与带 ~ 前缀的临时文件，不入库）
+# GDExtension 编辑器临时 dll（顶层散落副本与带 ~ 前缀的临时文件，不入库）
 /GlobalInput.windows.template_debug.x86_64.dll
-**/~GlobalInput.windows.template_debug.x86_64.dll
+**/~*

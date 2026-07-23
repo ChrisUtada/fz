@@ -21,7 +21,8 @@ const ARRIVE_DIST := 8.0       # 到达判定距离
 var _data: CustomerData
 var _data_pending := false
 
-var _state: String = "idle"     # idle | shopping | browsing | leaving
+enum State { IDLE, SHOPPING, BROWSING, LEAVING }
+var _state: State = State.IDLE
 var _target_slot: int = -1
 var _rack_target: Vector2 = Vector2.ZERO
 var _has_target := false
@@ -78,18 +79,18 @@ func set_rack_target(pos: Vector2) -> void:
 ## 决定本次行为：有货槽→随机选一个去购买；无货→逛逛离开
 func _decide_behavior() -> void:
 	if not _has_target:
-		_state = "browsing"
+		_state = State.BROWSING
 		return
 	var stocked := GameManager.get_rack_slots_with_stock()
 	if stocked.is_empty():
-		_state = "browsing"
+		_state = State.BROWSING
 	else:
-		_state = "shopping"
+		_state = State.SHOPPING
 		_target_slot = stocked.pick_random()
 
 
 func _process(delta: float) -> void:
-	if _state == "idle":
+	if _state == State.IDLE:
 		_decide_behavior()
 		return
 	if _leaving:
@@ -100,12 +101,12 @@ func _process(delta: float) -> void:
 		global_position += dir * SPEED * delta
 		return
 	# 到达：结算
-	if _state == "shopping":
+	if _state == State.SHOPPING:
 		var price := GameManager.sell_from_rack(_target_slot)
 		if price >= 0:
 			_bounce()
 		_leave()
-	elif _state == "browsing":
+	elif _state == State.BROWSING:
 		_leave()
 
 
@@ -113,7 +114,7 @@ func _leave() -> void:
 	if _leaving:
 		return
 	_leaving = true
-	_state = "leaving"
+	_state = State.LEAVING
 	var t := create_tween()
 	t.tween_property(self, "modulate:a", 0.0, FADE_DURATION)
 	t.tween_callback(queue_free)
@@ -134,14 +135,4 @@ func _play_spawn_animation() -> void:
 
 ## 命中测试：global_pos 是否落在 HitArea 碰撞形状内（供 Main 拖窗口守卫）
 func contains_point(global_pos: Vector2) -> bool:
-	var space := get_world_2d().direct_space_state
-	var query := PhysicsPointQueryParameters2D.new()
-	query.position = global_pos
-	query.collision_mask = 2
-	query.collide_with_bodies = false
-	query.collide_with_areas = true
-	var results := space.intersect_point(query)
-	for r in results:
-		if r.collider == _hit_area:
-			return true
-	return false
+	return Utils.point_in_area(global_pos, _hit_area, 2)
