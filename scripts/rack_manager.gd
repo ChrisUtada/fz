@@ -130,7 +130,8 @@ func _save_rack() -> void:
 	var cfg := ConfigFile.new()
 	for i in range(clothing_rack.size()):
 		cfg.set_value("rack", "slot_%d" % i, clothing_rack[i])
-	cfg.save(RACK_SAVE_PATH)
+	if cfg.save(RACK_SAVE_PATH) != OK:
+		push_warning("RackManager: 展架存档写入失败 %s" % RACK_SAVE_PATH)
 
 
 func _load_rack() -> void:

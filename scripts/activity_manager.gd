@@ -329,7 +329,8 @@ func _delete_activity_save() -> void:
 func _save_streak() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("streak", "count", _activity_streak)
-	cfg.save(STREAK_SAVE_PATH)
+	if cfg.save(STREAK_SAVE_PATH) != OK:
+		push_warning("ActivityManager: 连击存档写入失败 %s" % STREAK_SAVE_PATH)
 
 
 func _load_streak() -> void:

@@ -9,19 +9,24 @@ const SAVE_PATH := "user://placements.cfg"
 ## 桌面装饰花盆限量（阶段 4.6）：花盆除在种植屏功能槽外，还可经仓库摆桌面作装饰，
 ## 但数量限量，避免纯装饰盆铺满桌面。功能盆（种植屏 6 槽）不计入此限。
 const DESKTOP_POT_LIMIT := 3
-const POT_ID := "pot"                  ## 与 data/product_pot.tres 的 id 对齐
+const POT_ID := "pot"                  ## 历史兜底 id（data/product_pot.tres）；优先用 init(pot_id=) 注入的运行时值
+## 首次摆放的随机中心（桌面中央偏右下）。原散落的 (340,240) 魔法数收口到此常量。
+const DEFAULT_SPAWN_CENTER := Vector2(340.0, 240.0)
 
 signal placement_rejected(reason: String)
 
 var _container: Node2D
 var _data_by_id: Dictionary = {}      # id -> ProductData
+var _pot_id := POT_ID                 # 装饰花盆限量判定用的 id，由 init 注入（Main 按 garden_placement 推导）
 var _pool_ready := false
 var _save_timer: Timer                # 落盘节流（摆放移动频繁，0.5s 合并一次）
 
 
 ## Main._ready 调用：注入产品池与摆放容器，建索引并还原存档
-func init(pool: Array[ProductData], container: Node2D) -> void:
+## pot_id：装饰花盆限量判定用的产品 id（Main 按 garden_placement 推导，找不到时兜底 "pot"）
+func init(pool: Array[ProductData], container: Node2D, pot_id: String = POT_ID) -> void:
 	_container = container
+	_pot_id = pot_id
 	_create_save_timer()
 	for p in pool:
 		if p != null and not p.id.is_empty():
@@ -38,7 +43,7 @@ func spawn_from_product(data: ProductData) -> void:
 		push_warning("PlacementManager.spawn_from_product: 数据或 placeable_scene 缺失，无法摆放 %s" % (data.id if data != null else "null"))
 		return
 	# 装饰花盆限量（阶段 4.6）：仅统计已摆到桌面的花盆，功能盆（种植屏槽）不计入
-	if data.id == POT_ID:
+	if data.id == _pot_id:
 		var count := 0
 		for c in _container.get_children():
 			if c is Placeable and c.data != null and c.data.id == POT_ID:
@@ -50,7 +55,7 @@ func spawn_from_product(data: ProductData) -> void:
 	var inst: Placeable = data.placeable_scene.instantiate()
 	if inst == null:
 		return
-	inst.global_position = Vector2(340.0 + randf_range(-80.0, 80.0), 240.0 + randf_range(-50.0, 50.0))
+	inst.global_position = DEFAULT_SPAWN_CENTER + Vector2(randf_range(-80.0, 80.0), randf_range(-50.0, 50.0))
 	_container.add_child(inst)        # 先入树：_ready 创建 _sprite 后才能 apply_data
 	inst.apply_data(data)
 	inst.moved.connect(_on_placed_moved)
@@ -110,7 +115,9 @@ func save_placements() -> void:
 				"scale": c.scale.x
 			}
 			cfg.set_value("placed", str(c.get_instance_id()), rec)
-	cfg.save(SAVE_PATH)
+	Utils.write_save_version(cfg)
+	if cfg.save(SAVE_PATH) != OK:
+		push_warning("PlacementManager.save_placements: 存档写入失败 %s" % SAVE_PATH)
 
 
 func restore() -> void:
@@ -119,6 +126,10 @@ func restore() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(SAVE_PATH) != OK:
 		return
+	# 旧档迁移占位：当前 SAVE_VERSION=1，v0（无版本戳）或更低在此扩展迁移逻辑。
+	# 现有格式与 v1 一致，无需转换；仅作框架起步，统一各存档的版本判定入口。
+	if Utils.is_legacy_save(cfg):
+		pass
 	if not cfg.has_section("placed"):
 		return
 	for key in cfg.get_section_keys("placed"):
@@ -130,7 +141,7 @@ func restore() -> void:
 		if inst == null:
 			continue
 		var data: ProductData = _data_by_id.get(rec.get("id", ""), null)
-		inst.global_position = Vector2(float(rec.get("x", 340.0)), float(rec.get("y", 240.0)))
+		inst.global_position = Vector2(float(rec.get("x", DEFAULT_SPAWN_CENTER.x)), float(rec.get("y", DEFAULT_SPAWN_CENTER.y)))
 		var s: float = float(rec.get("scale", 1.0))
 		inst.scale = Vector2(s, s)
 		_container.add_child(inst)        # 先入树：_ready 创建 _sprite 后才能 apply_data

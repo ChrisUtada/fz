@@ -9,8 +9,8 @@ var _data: ClothesData
 ## 由外部（Wardrobe）注入衣物数据并设置外观
 func setup(item_data: ClothesData) -> void:
 	_data = item_data
-	if _data != null and _data.icon_texture != null:
-		texture_normal = _data.icon_texture
+	if _data != null and _data.icon != null:
+		texture_normal = _data.icon
 		tooltip_text = "%s\n价格: %d | 灵感: %d" % [
 			_data.display_name if _data.display_name else _data.id,
 			_data.price,
@@ -51,7 +51,7 @@ func _get_drag_data(at_position: Vector2) -> Variant:
 
 	# 创建拖拽预览（半透明放大版图标）
 	var preview := TextureRect.new()
-	preview.texture = _data.icon_texture
+	preview.texture = _data.icon
 	preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	preview.custom_minimum_size = Vector2(64, 64)
 	preview.modulate.a = 0.7

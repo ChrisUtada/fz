@@ -70,7 +70,8 @@ func complete_order(base_reward: Dictionary) -> void:
 func _save_inspiration_total() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("inspiration", "total_earned", inspiration_total_earned)
-	cfg.save(INSPIRATION_TOTAL_SAVE_PATH)
+	if cfg.save(INSPIRATION_TOTAL_SAVE_PATH) != OK:
+		push_warning("EconomyManager: 灵感累计存档写入失败 %s" % INSPIRATION_TOTAL_SAVE_PATH)
 
 
 func _load_inspiration_total() -> void:

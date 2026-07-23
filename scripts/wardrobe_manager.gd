@@ -76,7 +76,8 @@ func _save_equipped() -> void:
 	var cfg := ConfigFile.new()
 	for slot in equipped.keys():
 		cfg.set_value("equipped", str(slot), equipped[slot])
-	cfg.save(EQUIPPED_SAVE_PATH)
+	if cfg.save(EQUIPPED_SAVE_PATH) != OK:
+		push_warning("WardrobeManager: 穿搭存档写入失败 %s" % EQUIPPED_SAVE_PATH)
 
 
 func _load_equipped() -> void:

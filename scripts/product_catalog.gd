@@ -10,6 +10,9 @@ extends Control
 const LIST_VIEW := 0
 const CONFIRM_VIEW := 1
 
+## 数据驱动回退：未传入 product_pool 时自动加载的内置产品路径（常量化，避免散落魔法串）
+const DEFAULT_PRODUCT_PATHS := ["res://data/product_chair.tres", "res://data/product_desk.tres", "res://data/product_lamp.tres"]
+
 ## 文字配色：弹窗背景统一深棕（UITheme.BG_PANEL），故所有文字用浅米色高对比；
 ## 「金币不足」禁用态用偏红（UITheme.TEXT_DISABLED），既可见又提示不可购买。
 ## 颜色统一取自 UITheme，换肤只改 scripts/ui_theme.gd 一处。
@@ -74,7 +77,7 @@ func _style_button(b: Button) -> void:
 func _ensure_pool() -> void:
 	if not product_pool.is_empty():
 		return
-	for path in ["res://data/product_chair.tres", "res://data/product_desk.tres", "res://data/product_lamp.tres"]:
+	for path in DEFAULT_PRODUCT_PATHS:
 		var res = load(path)
 		if res != null:
 			product_pool.append(res)

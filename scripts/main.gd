@@ -87,9 +87,6 @@ func _ready() -> void:
 	# 阶段 0.4：注册服装到统一库存注册表，并一次性播种初始衣橱（每款各 1 件）
 	_ensure_clothes_pool()
 	for c in clothes_pool:
-		# 服装图标统一落到基类 icon（背包/仓库/展架通用），避免 icon_texture 与 icon 分裂
-		if c != null and c.icon == null and c.icon_texture != null:
-			c.icon = c.icon_texture
 		GameManager.register_item(c)
 	GameManager.seed_starter_clothing(clothes_pool)
 	# 阶段 2.3：注册种子/作物到注册表（农场逻辑据此解析 SeedData），并一次性播种起始种子+花盆
@@ -137,7 +134,7 @@ func _ready() -> void:
 		GameManager.add_inspiration(20 - GameManager.inspiration_total_earned)
 	_instance_phone()
 	_instance_rack()
-	placement_manager.init(product_pool, $Panel/PlacedItems)
+	placement_manager.init(product_pool, $Panel/PlacedItems, pot_id_for_seed)
 	_setup_screens()
 	_setup_focus_bar()
 
@@ -396,6 +393,7 @@ func _open_inspiration() -> void:
 	var scene := preload("res://scenes/inspiration_panel.tscn")
 	var panel: Control = scene.instantiate()
 	panel.activity_pool = activity_pool
+	panel.request_minimize.connect(_enter_focus_mode)
 	add_child(panel)
 
 

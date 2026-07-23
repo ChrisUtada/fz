@@ -557,7 +557,8 @@ func _save_blueprints() -> void:
 	var cfg := ConfigFile.new()
 	for id in unlocked_blueprints.keys():
 		cfg.set_value("unlocked", id, true)
-	cfg.save(BLUEPRINTS_SAVE_PATH)
+	if cfg.save(BLUEPRINTS_SAVE_PATH) != OK:
+		push_warning("GameManager: 蓝图存档写入失败 %s" % BLUEPRINTS_SAVE_PATH)
 
 
 ## 取某蓝图定义（未加载/不存在返回 null）。

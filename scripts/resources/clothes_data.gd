@@ -22,9 +22,9 @@ enum Slot { HEAD, BODY, FEET, ACCESSORY }
 ## 程序中 layer.texture = data.texture 即可，无需额外位置计算
 @export var texture: Texture2D
 
-## 背包预览图标（*_b.png）：背包格子中显示的小图标（60×57）
-@export var icon_texture: Texture2D
-
+## 背包预览图标（*_b.png）：背包格子中显示的小图标（60×57）。
+## 统一复用基类 ItemData.icon（背包/仓库/展架/换装预览一处定义），故不再单独设 icon_texture 字段。
+## 历史 .tres 里的 `icon_texture = ...` 已统一改为 `icon = ...`（见 data/clothes_*.tres）。
 @export var slot: Slot = Slot.BODY                 ## 穿着部位
 @export var inspiration_value: int = 5             ## 提供灵感值
 

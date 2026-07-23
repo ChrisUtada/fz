@@ -248,7 +248,8 @@ func save_inventory() -> void:
 	cfg.set_value("meta", "clothing_seeded", clothing_seeded)
 	cfg.set_value("meta", "farm_seeded", farm_seeded)
 	cfg.set_value("meta", "workshop_seeded", workshop_seeded)
-	cfg.save(INVENTORY_SAVE_PATH)
+	if cfg.save(INVENTORY_SAVE_PATH) != OK:
+		push_warning("InventoryManager: 库存存档写入失败 %s" % INVENTORY_SAVE_PATH)
 	_save_unlocked_clothes()
 
 
@@ -257,7 +258,8 @@ func _save_unlocked_clothes() -> void:
 	var cfg := ConfigFile.new()
 	for id in unlocked_clothes.keys():
 		cfg.set_value("unlocked", id, true)
-	cfg.save(UNLOCKED_CLOTHES_SAVE_PATH)
+	if cfg.save(UNLOCKED_CLOTHES_SAVE_PATH) != OK:
+		push_warning("InventoryManager: 已解锁服装存档写入失败 %s" % UNLOCKED_CLOTHES_SAVE_PATH)
 
 
 func _load_inventory() -> void:

@@ -11,7 +11,7 @@ extends Resource
 @export var id: String = ""                       ## 唯一标识
 @export var display_name: String = ""             ## 展示名
 @export var texture: Texture2D                     ## 宠物贴图（外观引用随数据一起管理）
-@export var region_rect: Rect2 = Rect2()           ## 贴图裁剪区域（仅显示宠物本体）
+@export var region_rect: Rect2 = Rect2(0, 0, 736, 414)  ## 贴图裁剪区域（仅显示宠物本体）；默认整图，漏填也不至于贴图不可见
 @export var base_scale: Vector2 = Vector2.ONE      ## 显示缩放
 @export var walk_speed: float = 60.0               ## 行走速度（px/s）
 @export var bob_amplitude: float = 4.0             ## 上下浮动幅度（px）

@@ -119,7 +119,8 @@ func _save_position() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("phone", "x", global_position.x)
 	cfg.set_value("phone", "y", global_position.y)
-	cfg.save(SAVE_PATH)
+	if cfg.save(SAVE_PATH) != OK:
+		push_warning("Phone: 位置存档写入失败 %s" % SAVE_PATH)
 
 
 ## 仅刷新「已到货」提醒；进度条/倒计时已移入订单中心弹窗。

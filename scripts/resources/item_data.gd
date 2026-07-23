@@ -24,7 +24,7 @@ enum Category { CLOTHING, SEED, CROP, MATERIAL, DECOR }
 @export var id: String = ""                       ## 唯一标识（库存 key，建议与文件名一致）
 @export var display_name: String = ""             ## 展示名
 @export var icon: Texture2D                       ## UI 图标（目录/仓库/展架预览）；占位阶段可留空
-@export var category: Category = Category.CLOTHING  ## 背包分类（仅 CLOTHING/SEED/CROP/MATERIAL 四类，决定进仓库哪个标签页）
+@export var category: Category = Category.CLOTHING  ## 背包分类（CLOTHING/SEED/CROP/MATERIAL/DECOR 五类；DECOR 为摆放物，不进服装/种子/作物/材料标签页）
 @export var description: String = ""              ## 描述（可选）
 @export var price: int = 0                         ## 展架售出价（金币）；服装类生效，摆放物等可不售
 @export var is_placeable: bool = false            ## 是否世界可摆放物（区别于背包分类；true 时仓库收进「摆放」标签页）

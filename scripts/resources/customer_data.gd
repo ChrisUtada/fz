@@ -13,7 +13,7 @@ extends Resource
 @export var id: String = ""                       ## 唯一标识（存档/统计用）
 @export var display_name: String = ""             ## 展示名（调试/日志用）
 @export var texture: Texture2D                     ## 角色贴图（外观引用随数据一起管理）
-@export var region_rect: Rect2 = Rect2()           ## 贴图裁剪区域（仅显示小人本体）
+@export var region_rect: Rect2 = Rect2(0, 0, 736, 414)  ## 贴图裁剪区域（仅显示小人本体）；默认整图，漏填也不至于贴图不可见
 @export var base_scale: Vector2 = Vector2.ONE      ## 显示缩放
 @export var gold_reward_min: int = 100             ## 金币奖励下限
 @export var gold_reward_max: int = 100             ## 金币奖励上限

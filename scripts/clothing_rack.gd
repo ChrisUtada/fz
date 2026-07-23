@@ -75,4 +75,5 @@ func _save_position() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("rack", "x", global_position.x)
 	cfg.set_value("rack", "y", global_position.y)
-	cfg.save(SAVE_PATH)
+	if cfg.save(SAVE_PATH) != OK:
+		push_warning("ClothingRack: 位置存档写入失败 %s" % SAVE_PATH)

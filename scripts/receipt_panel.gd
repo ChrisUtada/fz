@@ -7,6 +7,9 @@ extends Control
 
 @export var product_pool: Array[ProductData] = []
 
+## 数据驱动回退：未传入 product_pool 时自动加载的内置产品路径（常量化，避免散落魔法串）
+const DEFAULT_PRODUCT_PATHS := ["res://data/product_chair.tres", "res://data/product_desk.tres", "res://data/product_lamp.tres"]
+
 @onready var _list: VBoxContainer = $Card/Content/ItemList
 @onready var _empty_label: Label = $Card/Content/EmptyLabel
 @onready var _confirm_btn: Button = $Card/Content/ConfirmButton
@@ -24,6 +27,8 @@ func _ready() -> void:
 	_close_btn.add_theme_color_override("font_color", UITheme.TEXT_PRIMARY)
 	_close_btn.pressed.connect(_on_close)
 	_confirm_btn.pressed.connect(_on_confirm)
+	# 开着收货单时，新到货（电话下单到货 / 领取后再次到货）实时刷新列表
+	GameManager.arrived_changed.connect(_on_arrived_changed)
 	_ensure_pool()
 	_populate()
 
@@ -31,7 +36,7 @@ func _ready() -> void:
 func _ensure_pool() -> void:
 	if not product_pool.is_empty():
 		return
-	for path in ["res://data/product_chair.tres", "res://data/product_desk.tres", "res://data/product_lamp.tres"]:
+	for path in DEFAULT_PRODUCT_PATHS:
 		var res = load(path)
 		if res != null:
 			product_pool.append(res)
@@ -66,6 +71,16 @@ func _find_product(id: String) -> ProductData:
 		if p != null and p.id == id:
 			return p
 	return null
+
+
+## 到货信号触发：列表实时刷新（开着面板时新到货可见）
+func _on_arrived_changed() -> void:
+	_populate()
+
+
+func _exit_tree() -> void:
+	if GameManager.arrived_changed.is_connected(_on_arrived_changed):
+		GameManager.arrived_changed.disconnect(_on_arrived_changed)
 
 
 # 图标生成已统一到 Utils.make_icon（见 scripts/utils.gd）

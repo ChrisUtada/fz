@@ -18,6 +18,9 @@ const LIST_VIEW := 0
 const TIMER_VIEW := 1
 const RUNNING_VIEW := 2
 
+## 请求收起为专注条（由 Main 连接 → _enter_focus_mode），替代原先跨层字符串调 Main._enter_focus_mode
+signal request_minimize
+
 @export var activity_pool: Array[ActivityData] = []
 
 var _current_view: int = LIST_VIEW
@@ -231,9 +234,7 @@ func _on_end_pressed() -> void:
 
 ## RUNNING 视图「最小化专注条」：收起为专注条，转去做现实中的事
 func _on_minimize_pressed() -> void:
-	var main = get_tree().current_scene
-	if main != null and main.has_method("_enter_focus_mode"):
-		main.call("_enter_focus_mode")
+	request_minimize.emit()
 
 
 func _on_activity_finished(reward: Dictionary) -> void:

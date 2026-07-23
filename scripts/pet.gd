@@ -16,11 +16,11 @@ signal pet_tapped
 
 const BASE_SCALE := Vector2(1.0, 1.0)
 
-## 行走参数
-@export var walk_speed: float = 60.0
-@export var bob_amplitude: float = 4.0
-@export var bob_frequency: float = 3.0
-@export var edge_margin: float = 50.0
+## 行走参数（PetData 为唯一真相源；_apply_visuals 会用 PetData 覆盖这些值，本处仅为无数据兜底默认）
+var walk_speed: float = 60.0
+var bob_amplitude: float = 4.0
+var bob_frequency: float = 3.0
+var edge_margin: float = 50.0
 
 var _direction := Vector2.RIGHT
 var _walk_time := 0.0
@@ -61,8 +61,8 @@ func _process(delta: float) -> void:
 		return
 
 	_walk_time += delta
-	position += _direction * walk_speed * delta
-	position.y += sin(_walk_time * TAU * bob_frequency) * bob_amplitude * delta * 10.0
+	global_position += _direction * walk_speed * delta
+	global_position.y += sin(_walk_time * TAU * bob_frequency) * bob_amplitude * delta * 10.0
 
 	_check_bounds()
 
@@ -159,24 +159,18 @@ func _position_at_edge(side: String) -> void:
 	var win_size := get_window().size
 	match side:
 		"left":
-			position.x = -edge_margin
-			position.y = randf_range(edge_margin, win_size.y - edge_margin)
+			global_position.x = -edge_margin
+			global_position.y = randf_range(edge_margin, win_size.y - edge_margin)
 		"right":
-			position.x = win_size.x + edge_margin
-			position.y = randf_range(edge_margin, win_size.y - edge_margin)
-		"top":
-			position.x = randf_range(edge_margin, win_size.x - edge_margin)
-			position.y = -edge_margin
-		"bottom":
-			position.x = randf_range(edge_margin, win_size.x - edge_margin)
-			position.y = win_size.y + edge_margin
+			global_position.x = win_size.x + edge_margin
+			global_position.y = randf_range(edge_margin, win_size.y - edge_margin)
 
 
 func _check_bounds() -> void:
 	var win_size := get_window().size
 	var margin := edge_margin
-	if (position.x < -margin or position.x > win_size.x + margin or
-		position.y < -margin or position.y > win_size.y + margin):
+	if (global_position.x < -margin or global_position.x > win_size.x + margin or
+		global_position.y < -margin or global_position.y > win_size.y + margin):
 		_die()
 
 

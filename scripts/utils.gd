@@ -48,3 +48,27 @@ static func point_in_area(global_pos: Vector2, area: Node2D, mask: int) -> bool:
 ## 统一 phone / clothing_rack / pet 三处重复的 distance_to(...) >= DRAG_THRESHOLD。
 static func exceeds_drag_threshold(current: Vector2, pressed: Vector2, threshold := 4.0) -> bool:
 	return current.distance_to(pressed) >= threshold
+
+
+## ─── 存档版本号 / 迁移框架（起步） ───
+## 统一存档版本号：各 ConfigFile 存档在 [meta] 写入 save_version。
+## 读取时比对 SAVE_VERSION：缺失或低于当前值即视为旧档，调用方据此走迁移分支。
+## 各管理器可复用本套辅助，逐步实现「统一存档版本 + 迁移」框架。
+const SAVE_VERSION := 1
+const _META_SECTION := "meta"
+const _VERSION_KEY := "save_version"
+
+
+## 写入版本戳（建议在所有 set_value 之后、save 之前调用）
+static func write_save_version(cfg: ConfigFile) -> void:
+	cfg.set_value(_META_SECTION, _VERSION_KEY, SAVE_VERSION)
+
+
+## 读取存档版本号；缺失返回 0（视作 v0 旧档）
+static func read_save_version(cfg: ConfigFile) -> int:
+	return int(cfg.get_value(_META_SECTION, _VERSION_KEY, 0))
+
+
+## 是否为需要迁移的旧档（缺失或低于当前 SAVE_VERSION）
+static func is_legacy_save(cfg: ConfigFile) -> bool:
+	return read_save_version(cfg) < SAVE_VERSION

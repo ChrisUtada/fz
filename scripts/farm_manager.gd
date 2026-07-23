@@ -173,7 +173,8 @@ func _save_farm() -> void:
 		cfg.set_value(sec, "seed_id", s.get("seed_id", ""))
 		cfg.set_value(sec, "planted_unix", int(s.get("planted_unix", 0)))
 		cfg.set_value(sec, "done", bool(s.get("done", false)))
-	cfg.save(FARM_SAVE_PATH)
+	if cfg.save(FARM_SAVE_PATH) != OK:
+		push_warning("FarmManager: 农场存档写入失败 %s" % FARM_SAVE_PATH)
 
 
 func _load_farm() -> void:
