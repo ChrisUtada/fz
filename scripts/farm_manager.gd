@@ -173,6 +173,7 @@ func _save_farm() -> void:
 		cfg.set_value(sec, "seed_id", s.get("seed_id", ""))
 		cfg.set_value(sec, "planted_unix", int(s.get("planted_unix", 0)))
 		cfg.set_value(sec, "done", bool(s.get("done", false)))
+	Utils.write_save_version(cfg)
 	if cfg.save(FARM_SAVE_PATH) != OK:
 		push_warning("FarmManager: 农场存档写入失败 %s" % FARM_SAVE_PATH)
 
@@ -181,6 +182,9 @@ func _load_farm() -> void:
 	farm_slots = []
 	var cfg := ConfigFile.new()
 	if cfg.load(FARM_SAVE_PATH) == OK:
+		# 旧档迁移入口：v0（无版本戳）格式与 v1 一致，暂无需转换（见 Utils.SAVE_VERSION）
+		if Utils.is_legacy_save(cfg):
+			pass
 		for i in range(FARM_SLOTS):
 			var sec := "slot_%d" % i
 			if not cfg.has_section(sec):

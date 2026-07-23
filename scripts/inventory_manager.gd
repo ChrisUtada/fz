@@ -248,6 +248,7 @@ func save_inventory() -> void:
 	cfg.set_value("meta", "clothing_seeded", clothing_seeded)
 	cfg.set_value("meta", "farm_seeded", farm_seeded)
 	cfg.set_value("meta", "workshop_seeded", workshop_seeded)
+	Utils.write_save_version(cfg)   # 与 seeded 标记同住 [meta] 段，键不冲突
 	if cfg.save(INVENTORY_SAVE_PATH) != OK:
 		push_warning("InventoryManager: 库存存档写入失败 %s" % INVENTORY_SAVE_PATH)
 	_save_unlocked_clothes()
@@ -258,6 +259,7 @@ func _save_unlocked_clothes() -> void:
 	var cfg := ConfigFile.new()
 	for id in unlocked_clothes.keys():
 		cfg.set_value("unlocked", id, true)
+	Utils.write_save_version(cfg)
 	if cfg.save(UNLOCKED_CLOTHES_SAVE_PATH) != OK:
 		push_warning("InventoryManager: 已解锁服装存档写入失败 %s" % UNLOCKED_CLOTHES_SAVE_PATH)
 
@@ -265,6 +267,9 @@ func _save_unlocked_clothes() -> void:
 func _load_inventory() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(INVENTORY_SAVE_PATH) == OK:
+		# 旧档迁移入口：v0（无版本戳）格式与 v1 一致，暂无需转换（见 Utils.SAVE_VERSION）
+		if Utils.is_legacy_save(cfg):
+			pass
 		if cfg.has_section("items"):
 			for id in cfg.get_section_keys("items"):
 				var cnt: int = int(cfg.get_value("items", id, 0))

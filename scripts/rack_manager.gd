@@ -130,6 +130,7 @@ func _save_rack() -> void:
 	var cfg := ConfigFile.new()
 	for i in range(clothing_rack.size()):
 		cfg.set_value("rack", "slot_%d" % i, clothing_rack[i])
+	Utils.write_save_version(cfg)
 	if cfg.save(RACK_SAVE_PATH) != OK:
 		push_warning("RackManager: 展架存档写入失败 %s" % RACK_SAVE_PATH)
 
@@ -138,6 +139,9 @@ func _load_rack() -> void:
 	clothing_rack = []
 	var cfg := ConfigFile.new()
 	if cfg.load(RACK_SAVE_PATH) == OK:
+		# 旧档迁移入口：v0（无版本戳）格式与 v1 一致，暂无需转换（见 Utils.SAVE_VERSION）
+		if Utils.is_legacy_save(cfg):
+			pass
 		for i in range(RACK_SLOTS):
 			clothing_rack.append(str(cfg.get_value("rack", "slot_%d" % i, "")))
 	while clothing_rack.size() < RACK_SLOTS:

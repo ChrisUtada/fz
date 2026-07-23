@@ -529,6 +529,9 @@ func _load_blueprints() -> void:
 	# 恢复已解锁存档（阈值日后提高也不会回锁）
 	var cfg := ConfigFile.new()
 	if cfg.load(BLUEPRINTS_SAVE_PATH) == OK and cfg.has_section("unlocked"):
+		# 旧档迁移入口：v0（无版本戳）格式与 v1 一致，暂无需转换（见 Utils.SAVE_VERSION）
+		if Utils.is_legacy_save(cfg):
+			pass
 		for id in cfg.get_section_keys("unlocked"):
 			var uid: String = str(id)
 			if _blueprint_registry.has(uid):
@@ -557,6 +560,7 @@ func _save_blueprints() -> void:
 	var cfg := ConfigFile.new()
 	for id in unlocked_blueprints.keys():
 		cfg.set_value("unlocked", id, true)
+	Utils.write_save_version(cfg)
 	if cfg.save(BLUEPRINTS_SAVE_PATH) != OK:
 		push_warning("GameManager: 蓝图存档写入失败 %s" % BLUEPRINTS_SAVE_PATH)
 
@@ -647,11 +651,13 @@ func get_displayable_clothing() -> Array:
 # ─── 订单存档（user://，持久化结算所需最小信息） ───
 
 func _save_orders() -> void:
-	var payload := {"orders": _orders, "arrived": _arrived}
+	var payload := {"save_version": Utils.SAVE_VERSION, "orders": _orders, "arrived": _arrived}
 	var f := FileAccess.open(ORDER_SAVE_PATH, FileAccess.WRITE)
 	if f != null:
 		f.store_string(JSON.stringify(payload))
 		f.close()
+	else:
+		push_warning("GameManager: 订单存档写入失败 %s" % ORDER_SAVE_PATH)
 
 
 func _load_orders() -> void:
@@ -666,6 +672,9 @@ func _load_orders() -> void:
 	if parsed == null or not parsed is Dictionary:
 		_delete_orders_save()
 		return
+	# 旧档迁移入口：v0（无 save_version 键）格式与 v1 一致，暂无需转换（见 Utils.SAVE_VERSION）
+	if int(parsed.get("save_version", 0)) < Utils.SAVE_VERSION:
+		pass
 	var orders_arr: Array = parsed.get("orders", [])
 	var arrived_arr: Array = parsed.get("arrived", [])
 	var now := Time.get_unix_time_from_system()

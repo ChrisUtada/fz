@@ -119,6 +119,7 @@ func _save_position() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("phone", "x", global_position.x)
 	cfg.set_value("phone", "y", global_position.y)
+	Utils.write_save_version(cfg)
 	if cfg.save(SAVE_PATH) != OK:
 		push_warning("Phone: 位置存档写入失败 %s" % SAVE_PATH)
 

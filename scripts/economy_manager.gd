@@ -70,6 +70,7 @@ func complete_order(base_reward: Dictionary) -> void:
 func _save_inspiration_total() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("inspiration", "total_earned", inspiration_total_earned)
+	Utils.write_save_version(cfg)
 	if cfg.save(INSPIRATION_TOTAL_SAVE_PATH) != OK:
 		push_warning("EconomyManager: 灵感累计存档写入失败 %s" % INSPIRATION_TOTAL_SAVE_PATH)
 
@@ -77,4 +78,7 @@ func _save_inspiration_total() -> void:
 func _load_inspiration_total() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(INSPIRATION_TOTAL_SAVE_PATH) == OK:
+		# 旧档迁移入口：v0（无版本戳）格式与 v1 一致，暂无需转换（见 Utils.SAVE_VERSION）
+		if Utils.is_legacy_save(cfg):
+			pass
 		inspiration_total_earned = int(cfg.get_value("inspiration", "total_earned", 0))

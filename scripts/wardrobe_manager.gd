@@ -76,6 +76,7 @@ func _save_equipped() -> void:
 	var cfg := ConfigFile.new()
 	for slot in equipped.keys():
 		cfg.set_value("equipped", str(slot), equipped[slot])
+	Utils.write_save_version(cfg)
 	if cfg.save(EQUIPPED_SAVE_PATH) != OK:
 		push_warning("WardrobeManager: 穿搭存档写入失败 %s" % EQUIPPED_SAVE_PATH)
 
@@ -83,6 +84,9 @@ func _save_equipped() -> void:
 func _load_equipped() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(EQUIPPED_SAVE_PATH) == OK and cfg.has_section("equipped"):
+		# 旧档迁移入口：v0（无版本戳）格式与 v1 一致，暂无需转换（见 Utils.SAVE_VERSION）
+		if Utils.is_legacy_save(cfg):
+			pass
 		for slot_str in cfg.get_section_keys("equipped"):
 			var vid: String = str(cfg.get_value("equipped", slot_str, ""))
 			if not vid.is_empty():

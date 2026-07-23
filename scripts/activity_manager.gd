@@ -283,6 +283,7 @@ func _streak_factor(streak: int) -> float:
 
 func _save_activity() -> void:
 	var payload := {
+		"save_version": Utils.SAVE_VERSION,   # JSON 存档同样带版本号（与 ConfigFile 存档统一）
 		"name": _activity_name,
 		"per_minute": _activity_per_minute,
 		"start_unix": _activity_start_unix,
@@ -292,6 +293,8 @@ func _save_activity() -> void:
 	if f != null:
 		f.store_string(JSON.stringify(payload))
 		f.close()
+	else:
+		push_warning("ActivityManager: 活动存档写入失败 %s" % ACTIVITY_SAVE_PATH)
 
 
 func _load_activity() -> void:
@@ -306,6 +309,9 @@ func _load_activity() -> void:
 	if parsed == null or not parsed is Dictionary:
 		_delete_activity_save()
 		return
+	# 旧档迁移入口：v0（无 save_version 键）格式与 v1 一致，暂无需转换（见 Utils.SAVE_VERSION）
+	if int(parsed.get("save_version", 0)) < Utils.SAVE_VERSION:
+		pass
 	_activity_name = parsed.get("name", "")
 	_activity_per_minute = float(parsed.get("per_minute", 0.0))
 	_activity_start_unix = int(parsed.get("start_unix", 0))
@@ -329,6 +335,7 @@ func _delete_activity_save() -> void:
 func _save_streak() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("streak", "count", _activity_streak)
+	Utils.write_save_version(cfg)
 	if cfg.save(STREAK_SAVE_PATH) != OK:
 		push_warning("ActivityManager: 连击存档写入失败 %s" % STREAK_SAVE_PATH)
 
@@ -336,4 +343,7 @@ func _save_streak() -> void:
 func _load_streak() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(STREAK_SAVE_PATH) == OK:
+		# 旧档迁移入口：v0（无版本戳）格式与 v1 一致，暂无需转换（见 Utils.SAVE_VERSION）
+		if Utils.is_legacy_save(cfg):
+			pass
 		_activity_streak = int(cfg.get_value("streak", "count", 0))
