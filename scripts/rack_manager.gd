@@ -115,7 +115,7 @@ func get_displayable_clothing() -> Array:
 		var id: String = entry["data"].id
 		if clothing_rack.has(id):   # 已占某个槽 → 不再列为可上架，防止同款多槽
 			continue
-		var avail := owner_mgr.get_count(id) if owner_mgr != null else 0
+		var avail: int = owner_mgr.get_count(id) if owner_mgr != null else 0
 		if avail > 0:
 			out.append({"id": id, "data": entry["data"], "available": avail})
 	return out
