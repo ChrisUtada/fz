@@ -35,12 +35,13 @@ var unlocked_clothes: Dictionary:
 	get:
 		return inventory_mgr.unlocked_clothes if inventory_mgr != null else {}
 
-# ─── 穿搭（equipped，与所有权分离；换装屏当前穿在身上的衣服） ───
-## equipped: slot(int) -> item_id(String)。所有权在 inventory[CLOTHING]，穿搭独立于此。
-## 展架库存 = 拥有总数 - 穿戴数（穿在身上的不计入可售）。
-const EQUIPPED_SAVE_PATH := "user://equipped.cfg"
-const OLD_WARDROBE_PATH := "user://wardrobe.cfg"   # 旧衣橱穿搭存档（slot -> resource_path），一次性迁移用
-var equipped: Dictionary = {}        # slot(int) -> item_id(String)
+# ─── 穿搭子管理器（WardrobeManager 门面；equipped 真相源已迁出，详见 wardrobe_manager.gd） ───
+## 所有穿搭读写现在委托给 WardrobeManager；本 autoload 仅保留对外兼容 API 与信号 re-emit。
+var wardrobe_mgr: WardrobeManager = null
+## wardrobe.gd / rack_panel.gd 直读 GameManager.equipped 字典；转发到子管理器以保持兼容。
+var equipped: Dictionary:
+	get:
+		return wardrobe_mgr.equipped if wardrobe_mgr != null else {}
 
 # ─── 灵感累计 & 蓝图解锁（阶段 0.8） ───
 const BLUEPRINTS_SAVE_PATH := "user://blueprints.cfg"
@@ -128,8 +129,13 @@ func _ready() -> void:
 	activity_mgr.activity_interrupted.connect(func(n): activity_interrupted.emit(n))
 	activity_mgr.activity_streak_changed.connect(func(s): activity_streak_changed.emit(s))
 	activity_mgr.load_all()
+	# 穿搭子管理器：load_all 内含旧档一次性迁移
+	wardrobe_mgr = WardrobeManager.new()
+	add_child(wardrobe_mgr)
+	wardrobe_mgr.owner_mgr = self
+	wardrobe_mgr.equipped_changed.connect(func(): equipped_changed.emit())
+	wardrobe_mgr.load_all()
 	_load_orders()
-	_load_equipped()
 	_load_blueprints()
 	_load_farm()
 	_load_rack()
@@ -444,86 +450,30 @@ func seed_starter_workshop(materials: Dictionary) -> void:
 		inventory_changed.emit()
 
 
-# ═══════════════════ 穿搭（equipped，slot -> item_id；与所有权分离） ═══════════════════
+# ═════════════════════ 穿搭（equipped，slot -> item_id；与所有权分离） ═════════════════════
+## 以下方法为 WardrobeManager 的委托转发；内部状态与存档见 wardrobe_manager.gd。
 
 ## 穿上：把某槽位设为某 item_id（同槽自动替换）。所有权不变（仍在 inventory）。
 func equip(slot: int, item_id: String) -> void:
-	if item_id.is_empty():
-		return
-	equipped[slot] = item_id
-	_save_equipped()
-	equipped_changed.emit()
-
+	if wardrobe_mgr != null:
+		wardrobe_mgr.equip(slot, item_id)
 
 ## 脱下指定槽位。
 func unequip(slot: int) -> void:
-	if equipped.has(slot):
-		equipped.erase(slot)
-		_save_equipped()
-		equipped_changed.emit()
-
+	if wardrobe_mgr != null:
+		wardrobe_mgr.unequip(slot)
 
 func get_equipped(slot: int) -> String:
-	return equipped.get(slot, "")
-
+	return wardrobe_mgr.get_equipped(slot) if wardrobe_mgr != null else ""
 
 ## 某 item_id 当前被穿在几个槽位（通常 0 或 1）。展架库存 = 拥有总数 - 穿戴数。
 func get_worn_count(item_id: String) -> int:
-	var n := 0
-	for s in equipped.keys():
-		if equipped[s] == item_id:
-			n += 1
-	return n
-
+	return wardrobe_mgr.get_worn_count(item_id) if wardrobe_mgr != null else 0
 
 func is_worn(item_id: String) -> bool:
-	return get_worn_count(item_id) > 0
+	return wardrobe_mgr.is_worn(item_id) if wardrobe_mgr != null else false
 
-
-func _save_equipped() -> void:
-	if equipped.is_empty():
-		# 没有任何穿搭 → 删除可能残留的空存档，避免下次加载时读到“无段的文件”报错
-		var dir := DirAccess.open("user://")
-		if dir != null:
-			dir.remove(EQUIPPED_SAVE_PATH)
-		return
-	var cfg := ConfigFile.new()
-	for slot in equipped.keys():
-		cfg.set_value("equipped", str(slot), equipped[slot])
-	cfg.save(EQUIPPED_SAVE_PATH)
-
-
-func _load_equipped() -> void:
-	var cfg := ConfigFile.new()
-	if cfg.load(EQUIPPED_SAVE_PATH) == OK and cfg.has_section("equipped"):
-		for slot_str in cfg.get_section_keys("equipped"):
-			var vid: String = str(cfg.get_value("equipped", slot_str, ""))
-			if not vid.is_empty():
-				equipped[int(slot_str)] = vid
-		return
-	# 无新存档（或文件为空无 equipped 段）→ 尝试从旧 wardrobe.cfg（slot -> resource_path）一次性迁移
-	_migrate_old_wardrobe()
-
-
-## 一次性迁移：旧 wardrobe.cfg 存的是 slot -> ClothesData 资源路径；
-## 载入资源取其 id，转成新格式 equipped[slot] = item_id 并存档。
-func _migrate_old_wardrobe() -> void:
-	var cfg := ConfigFile.new()
-	if cfg.load(OLD_WARDROBE_PATH) != OK:
-		return
-	if not cfg.has_section("equipped"):
-		return
-	for slot_str in cfg.get_section_keys("equipped"):
-		var path: String = str(cfg.get_value("equipped", slot_str, ""))
-		if path.is_empty() or not ResourceLoader.exists(path):
-			continue
-		var data = load(path)
-		if data != null and not data.id.is_empty():
-			equipped[int(slot_str)] = data.id
-	if not equipped.is_empty():
-		_save_equipped()
-
-# ═══════════════════ 灵感累计 & 蓝图解锁（阶段 0.8） ═══════════════════
+# ═════════════════════ 灵感累计 & 蓝图解锁（阶段 0.8） ═══════════════════
 ## 灵感累计（inspiration_total_earned）已迁至 EconomyManager；蓝图解锁逻辑如下。
 
 
