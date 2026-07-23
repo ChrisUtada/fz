@@ -356,6 +356,16 @@ func remove_item(id: String, n: int = 1) -> void:
 	if inventory_mgr != null:
 		inventory_mgr.remove_item(id, n)
 
+## 批量写盘门面转发：begin_batch … commit_batch 之间经 InventoryManager 的一切
+## add/remove 只标记脏，commit 时统一落盘 + 广播一次（供未来多步批量操作复用）。
+func begin_batch() -> void:
+	if inventory_mgr != null:
+		inventory_mgr.begin_batch()
+
+func commit_batch() -> void:
+	if inventory_mgr != null:
+		inventory_mgr.commit_batch()
+
 func has_item(id: String) -> bool:
 	return inventory_mgr.has_item(id) if inventory_mgr != null else false
 
