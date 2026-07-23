@@ -37,3 +37,7 @@ desktop.ini
 __pycache__/
 *.pyc
 _rawtest.json
+
+# GDExtension 构建/编辑器临时 dll（散落副本与带 ~ 前缀的临时文件，不入库）
+/GlobalInput.windows.template_debug.x86_64.dll
+**/~GlobalInput.windows.template_debug.x86_64.dll
