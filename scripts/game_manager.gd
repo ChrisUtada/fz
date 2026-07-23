@@ -43,10 +43,8 @@ const OLD_WARDROBE_PATH := "user://wardrobe.cfg"   # 旧衣橱穿搭存档（slo
 var equipped: Dictionary = {}        # slot(int) -> item_id(String)
 
 # ─── 灵感累计 & 蓝图解锁（阶段 0.8） ───
-const INSPIRATION_TOTAL_SAVE_PATH := "user://inspiration_total.cfg"
 const BLUEPRINTS_SAVE_PATH := "user://blueprints.cfg"
 const BLUEPRINTS_DIR := "res://data/blueprints/"
-var inspiration_total_earned: int = 0     # 累计获得灵感（单调递增，蓝图阈值用）
 var _blueprint_registry: Dictionary = {}  # id -> BlueprintData（启动时加载，非存档）
 var unlocked_blueprints: Dictionary = {}  # id -> true（已解锁；含存档恢复 + 阈值达成）
 
@@ -72,18 +70,17 @@ var clothing_rack: Array = []          # 长度 RACK_SLOTS 的槽数组（元素
 ## 已解锁/已收藏服装集合（id -> true），与 inventory 的「当前库存数量」彻底解耦。
 ## 设计意图：衣橱 = 永久收藏（种子/制作即解锁，永远在衣橱里），仓库 = 当前数量（受制作/售出影响）。
 ## 因此售卖只动 inventory.count，永不动本集合；本集合只在 seed_starter_clothing / craft 产出服装时写入。
-@export var initial_gold: int = 0
-@export var initial_inspiration: int = 0
+# ─── 经济管理（委托给 EconomyManager） ───
+var economy_mgr: EconomyManager = null
 
 var gold: int:
-	set(v):
-		gold = v
-		currency_changed.emit(gold, inspiration)
+	get: return economy_mgr.gold if economy_mgr != null else 0
 
 var inspiration: int:
-	set(v):
-		inspiration = v
-		currency_changed.emit(gold, inspiration)
+	get: return economy_mgr.inspiration if economy_mgr != null else 0
+
+var inspiration_total_earned: int:
+	get: return economy_mgr.inspiration_total_earned if economy_mgr != null else 0
 
 # ─── 灵感活动计时（墙钟 + 存档，支持离线收益） ───
 const ACTIVITY_SAVE_PATH := "user://inspiration_active.json"
@@ -126,8 +123,12 @@ func is_modal_open() -> bool:
 
 
 func _ready() -> void:
-	gold = initial_gold
-	inspiration = initial_inspiration
+	# 经济管理子管理器：实例化、挂子节点、连接货币信号（GameManager 侧 re-emit 广播）
+	economy_mgr = EconomyManager.new()
+	add_child(economy_mgr)
+	economy_mgr.owner_mgr = self
+	economy_mgr.currency_changed.connect(_on_currency_changed)
+	economy_mgr.load_all()  # 设定 gold/inspiration=initial 并还原灵感累计（单调计数器）
 	# 库存子管理器：实例化、挂为子节点、连接库存变化信号（GameManager 侧 re-emit 广播）
 	inventory_mgr = InventoryManager.new()
 	add_child(inventory_mgr)
@@ -137,7 +138,6 @@ func _ready() -> void:
 	_load_activity()    # 灵感：已过期补发 / 未过期后台继续
 	_load_orders()      # 订单：离线期间到货的进待收，未到的后台继续
 	_load_equipped()    # 穿搭：还原 equipped（含旧 wardrobe.cfg 一次性迁移）
-	_load_inspiration_total()  # 灵感累计：还原单调计数器
 	_load_streak()             # 连击：还原跨会话连击数
 	_load_blueprints()          # 蓝图：加载定义 + 恢复解锁 + 初始解锁 pass
 	_load_farm()                # 农场：还原槽状态（墙钟，离线照常续算）
@@ -159,36 +159,24 @@ func _process(_delta: float) -> void:
 # ═══════════════════ 货币 ═══════════════════
 
 func add_gold(amount: int) -> void:
-	if amount < 0:
-		push_warning("add_gold 收到负值 %d，请用 subtract_gold" % amount)
-	gold += amount
-
+	if economy_mgr != null:
+		economy_mgr.add_gold(amount)
 
 func subtract_gold(amount: int) -> void:
-	add_gold(-amount)
-
+	if economy_mgr != null:
+		economy_mgr.subtract_gold(amount)
 
 func add_inspiration(amount: int) -> void:
-	if amount < 0:
-		push_warning("add_inspiration 收到负值 %d，请用 subtract_inspiration" % amount)
-		# 负值（花费）不计入累计获得：inspiration_total_earned 只增不减
-		inspiration += amount
-		return
-	inspiration += amount
-	inspiration_total_earned += amount
-	_save_inspiration_total()
-	_evaluate_blueprint_unlocks(true)
-
+	if economy_mgr != null:
+		economy_mgr.add_inspiration(amount)
 
 func subtract_inspiration(amount: int) -> void:
-	add_inspiration(-amount)
-
+	if economy_mgr != null:
+		economy_mgr.subtract_inspiration(amount)
 
 func complete_order(base_reward: Dictionary) -> void:
-	var reward_gold: int = base_reward.get("gold", 0)
-	var reward_insp: int = base_reward.get("inspiration", 0)
-	add_gold(reward_gold)
-	add_inspiration(reward_insp)
+	if economy_mgr != null:
+		economy_mgr.complete_order(base_reward)
 
 
 # ═══════════════════ 灵感活动计时 ═══════════════════
@@ -653,6 +641,9 @@ func _ensure_unlocked_clothes() -> void:
 func _on_inventory_changed() -> void:
 	inventory_changed.emit()
 
+func _on_currency_changed(new_gold: int, new_insp: int) -> void:
+	currency_changed.emit(new_gold, new_insp)
+
 
 
 ## 一次性播种：首次运行把设计池中的服装各发 1 件作为初始衣橱。
@@ -785,20 +776,7 @@ func _migrate_old_wardrobe() -> void:
 		_save_equipped()
 
 # ═══════════════════ 灵感累计 & 蓝图解锁（阶段 0.8） ═══════════════════
-## inspiration_total_earned：累计"获得"的灵感（单调递增），作蓝图解锁阈值；
-## 与可花费的 inspiration 分离——花掉灵感不会让已解锁蓝图回锁。任何正向灵感来源
-## （灵感活动结算 / 订单奖励等）都累加，负值（花费）不计（见 add_inspiration）。
-
-func _save_inspiration_total() -> void:
-	var cfg := ConfigFile.new()
-	cfg.set_value("inspiration", "total_earned", inspiration_total_earned)
-	cfg.save(INSPIRATION_TOTAL_SAVE_PATH)
-
-
-func _load_inspiration_total() -> void:
-	var cfg := ConfigFile.new()
-	if cfg.load(INSPIRATION_TOTAL_SAVE_PATH) == OK:
-		inspiration_total_earned = int(cfg.get_value("inspiration", "total_earned", 0))
+## 灵感累计（inspiration_total_earned）已迁至 EconomyManager；蓝图解锁逻辑如下。
 
 
 ## 启动时把 res://data/blueprints/ 下全部 BlueprintData 载入注册表，并恢复已解锁状态；
