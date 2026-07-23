@@ -82,7 +82,7 @@ func _rebuild_slot(i: int) -> void:
 	# 否则 _process 仍通过 meta 拿到已 freed 的节点而报 "previously freed"。
 	slot.remove_meta("remain")
 	slot.remove_meta("progress")
-	var s: Dictionary = GameManager.farm_slots[i] if GameManager.farm_slots.size() > i else {}
+	var s: Dictionary = GameManager.get_slot(i)
 	var has_pot: bool = not str(s.get("pot_id", "")).is_empty()
 	var seed_id: String = str(s.get("seed_id", ""))
 	var state: int = -1   # 0=空 1=有盆无种 2=生长中 3=成熟

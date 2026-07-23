@@ -18,6 +18,11 @@ const OLD_WARDROBE_PATH := "user://wardrobe.cfg"   # 旧衣橱穿搭存档（slo
 ## 展架库存 = 拥有总数 - 穿戴数（穿在身上的不计入可售）。
 var equipped: Dictionary = {}        # slot(int) -> item_id(String)
 
+
+## 当前穿搭快照（slot -> item_id），供换装屏还原遍历（避免直读 equipped 内部字典）。
+func get_equipped_dict() -> Dictionary:
+	return equipped
+
 ## 预留跨域引用（当前穿搭不依赖其他管理器，将来若需反查库存可启用）
 var owner_mgr = null
 

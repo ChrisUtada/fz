@@ -71,7 +71,7 @@ func _populate() -> void:
 	_clear(_picker)
 	_selected_slot = -1
 	_hint.text = "点击空槽选择要上架的服装"
-	for slot in range(GameManager.clothing_rack.size()):
+	for slot in range(GameManager.get_rack_count()):
 		var id: String = GameManager.get_rack_item(slot)
 		var card := PanelContainer.new()
 		card.add_theme_stylebox_override("panel", _slot_style())

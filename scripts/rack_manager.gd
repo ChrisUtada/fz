@@ -16,6 +16,11 @@ const RACK_SAVE_PATH := "user://rack.cfg"
 ## clothing_rack: 长度 RACK_SLOTS 的数组，元素为 item_id(String) 或 ""（空槽）。
 var clothing_rack: Array = []          # 长度 RACK_SLOTS 的槽数组（元素为 item_id 或 ""）
 
+
+## 展架槽总数（供展架面板遍历，避免直读 clothing_rack 内部数组）。
+func get_rack_count() -> int:
+	return clothing_rack.size()
+
 ## 反向引用 GameManager（门面），用于跨域访问库存/货币（InventoryManager / EconomyManager）。
 var owner_mgr = null
 

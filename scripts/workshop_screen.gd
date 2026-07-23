@@ -95,7 +95,7 @@ func _render_make() -> void:
 		_make_list.add_child(_empty_label("（暂无蓝图）"))
 		return
 	for bp in bps:
-		if not GameManager.unlocked_blueprints.has(bp.id):
+		if not GameManager.is_blueprint_unlocked(bp.id):
 			_make_list.add_child(_build_locked_card(bp))
 		else:
 			_make_list.add_child(_build_blueprint_card(bp))

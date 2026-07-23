@@ -84,12 +84,12 @@ func _refresh_worn_badges() -> void:
 			slot.update_worn_status()
 
 
-## 衣橱 = 永久收藏：读 GameManager.unlocked_clothes（已解锁/已制作过的服装）。
+## 衣橱 = 永久收藏：经 GameManager.get_unlocked_clothing_ids() 取已解锁/已制作过的服装。
 ## 与 inventory 当前数量解耦——即使某件售罄归零，也始终留在衣橱里可穿搭；
 ## 「拥有多少件」由仓库面板（读 inventory）负责，互不干扰。
 func _owned_clothes() -> Array:
 	var out: Array = []
-	for id in GameManager.unlocked_clothes.keys():
+	for id in GameManager.get_unlocked_clothing_ids():
 		var d: ItemData = GameManager.get_item(id)
 		if d != null and d is ClothesData:
 			out.append(d)
@@ -197,11 +197,12 @@ func _compute_content_rect(tex: Texture2D) -> Rect2:
 	return img.get_used_rect()
 
 
-## 还原穿搭：从 GameManager.equipped（slot -> item_id）读取，
+## 还原穿搭：经 GameManager.get_equipped_dict()（slot -> item_id）读取，
 ## 经注册表把 id 解析回 ClothesData，套上对应部位的贴图。
 func _load_outfit() -> void:
-	for slot in GameManager.equipped.keys():
-		var item_id: String = GameManager.equipped[slot]
+	var eq: Dictionary = GameManager.get_equipped_dict()
+	for slot in eq.keys():
+		var item_id: String = eq[slot]
 		var data := GameManager.get_item(item_id) as ClothesData
 		if data == null:
 			continue
