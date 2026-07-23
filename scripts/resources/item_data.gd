@@ -29,6 +29,13 @@ enum Category { CLOTHING, SEED, CROP, MATERIAL, DECOR }
 @export var price: int = 0                         ## 展架售出价（金币）；服装类生效，摆放物等可不售
 @export var is_placeable: bool = false            ## 是否世界可摆放物（区别于背包分类；true 时仓库收进「摆放」标签页）
 @export var garden_placement: bool = false        ## 可作为种植屏功能槽容器（花盆类）。与 is_placeable 正交：本标志管「能否进种植槽」，is_placeable 管「能否摆桌面装饰」
-@export var decompose_recipe: Array[Dictionary] = []  ## 分解配方：每项 {item_id:String, count:int}；空=不可分解
+## 预加载 MaterialCost，使其在 `Array[MaterialCost]` 泛型参数里对当前文件可见。
+## 仅靠另一文件的 class_name 无法在「泛型参数」中被当前作用域解析，
+## 会报 "Could not find type 'MaterialCost' in the current scope"；preload 成 const 即可。
+## （与 BlueprintData 处理 required_materials 同款；material_cost.gd 仅反向引用 ItemData 类型，
+##   不预加载本文件，故此处预加载不构成循环依赖。）
+const MaterialCost = preload("res://scripts/resources/material_cost.gd")
+
+@export var decompose_recipe: Array[MaterialCost] = []  ## 分解配方：每项 MaterialCost（直接引用产物资源 + 数量）；空=不可分解
 @export var world_texture: Texture2D              ## 摆到世界里的贴图（区别于 icon/UI 用）；缺图时摆放物显示占位灰块
 @export var placeable_scene: PackedScene          ## 该物品对应的可摆放场景（继承 Placeable 的 tscn）；为空则不可摆放

@@ -262,19 +262,12 @@ func _materials_sufficient(bp: BlueprintData) -> bool:
 	return true
 
 
+## 把 decompose_recipe 渲染成 "红染料×1  纤维×2" 之类的简介，供工坊分解候选卡展示。
+## 直接读 MaterialCost.item.display_name（资源硬链接，无需 id→展示名 解析器）。
 func _recipe_text(d: ItemData) -> String:
 	var parts: Array = []
-	for e in d.decompose_recipe:
-		if not e is Dictionary:
+	for mc in d.decompose_recipe:
+		if mc == null or mc.item == null or mc.count <= 0:
 			continue
-		var norm := {}
-		for k in e.keys():
-			norm[str(k)] = e[k]
-		var iid: String = str(norm.get("item_id", ""))
-		var n: int = int(norm.get("count", 0))
-		if iid.is_empty() or n <= 0:
-			continue
-		var item: ItemData = GameManager.get_item(iid)
-		var nm: String = iid if item == null else item.display_name
-		parts.append("%s×%d" % [nm, n])
+		parts.append("%s×%d" % [mc.item.display_name, mc.count])
 	return "  ".join(parts)

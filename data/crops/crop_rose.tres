@@ -1,6 +1,19 @@
-[gd_resource type="Resource" script_class="ItemData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="ItemData" load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/resources/item_data.gd" id="1_item"]
+[ext_resource type="Script" uid="uid://bfamwjglm7r2a" path="res://scripts/resources/material_cost.gd" id="2_mc"]
+[ext_resource type="Resource" path="res://data/materials/red_dye.tres" id="3_rd"]
+[ext_resource type="Resource" path="res://data/materials/fiber.tres" id="4_fb"]
+
+[sub_resource type="Resource" id="5_mc1"]
+script = ExtResource("2_mc")
+item = ExtResource("3_rd")
+count = 1
+
+[sub_resource type="Resource" id="6_mc2"]
+script = ExtResource("2_mc")
+item = ExtResource("4_fb")
+count = 2
 
 [resource]
 script = ExtResource("1_item")
@@ -9,4 +22,4 @@ display_name = "玫瑰"
 description = "采摘得到的鲜切玫瑰，可在工坊分解"
 category = 2
 price = 0
-decompose_recipe = [{"item_id": "red_dye", "count": 1}, {"item_id": "fiber", "count": 2}]
+decompose_recipe = Array[ExtResource("2_mc")]([SubResource("5_mc1"), SubResource("6_mc2")])

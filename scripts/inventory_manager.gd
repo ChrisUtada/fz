@@ -159,18 +159,12 @@ func _decompose_internal(item_id: String) -> bool:
 		return false
 	if get_count(item_id) <= 0:
 		return false
-	for entry in data.decompose_recipe:
-		if not entry is Dictionary:
+	# decompose_recipe 是强类型 Array[MaterialCost]，每项直接持有产物 ItemData 引用 + 数量，
+	# 无需再按 id 字符串查注册表、也不用手动归一化 dict key（杜绝 String / StringName 键不一致漏读）。
+	for mc in data.decompose_recipe:
+		if mc == null or mc.item == null or mc.count <= 0:
 			continue
-		# 配方 dict 的 key 可能是 String 或 StringName（取决于 .tres 序列化形式），
-		# 统一转成 String key 再读，避免 Godot 4 下 String / StringName 键查找不一致导致漏读。
-		var norm := {}
-		for k in entry.keys():
-			norm[str(k)] = entry[k]
-		var out_id: String = str(norm.get("item_id", ""))
-		var out_n: int = int(norm.get("count", 0))
-		if not out_id.is_empty() and out_n > 0:
-			add_item(out_id, out_n)   # 产物按各自 ItemData.category 进库存（MATERIAL 等）
+		add_item(mc.item.id, mc.count)   # 产物按各自 ItemData.category 进库存（MATERIAL 等）
 	remove_item(item_id, 1)
 	return true
 
