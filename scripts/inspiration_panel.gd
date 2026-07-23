@@ -298,7 +298,7 @@ func _update_countdown_label() -> void:
 	var n := GameManager.get_activity_interrupts()
 	var st := GameManager.get_activity_streak()
 	if n > 0:
-		var factor := maxf(0.5, 1.0 - float(n) * 0.2)
+		var factor := GameManager.get_reward_factor()
 		var est := int(ceil(float(base) * factor - 0.0001))
 		_reward_hint.text = "进行中 · 已中断 %d 次 · 预计 +%d（满额 +%d）" % [n, est, base]
 	else:

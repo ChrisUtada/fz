@@ -196,6 +196,10 @@ func register_interrupt() -> void:
 func get_activity_interrupts() -> int:
 	return activity_mgr.get_activity_interrupts() if activity_mgr != null else 0
 
+## 打断衰减系数（委托到 ActivityManager.get_reward_factor，UI 只读，避免双处维护魔法数）
+func get_reward_factor() -> float:
+	return activity_mgr.get_reward_factor() if activity_mgr != null else 1.0
+
 func get_active_activity_name() -> String:
 	return activity_mgr.get_active_activity_name() if activity_mgr != null else ""
 
