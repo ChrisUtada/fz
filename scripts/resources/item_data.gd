@@ -27,6 +27,7 @@ enum Category { CLOTHING, SEED, CROP, MATERIAL, DECOR }
 @export var category: Category = Category.CLOTHING  ## 背包分类（CLOTHING/SEED/CROP/MATERIAL/DECOR 五类；DECOR 为摆放物，不进服装/种子/作物/材料标签页）
 @export var description: String = ""              ## 描述（可选）
 @export var price: int = 0                         ## 展架售出价（金币）；服装类生效，摆放物等可不售
+@export var max_per_order: int = 0                ## 商城单笔订单数量上限（方案A合并配送护栏）。0=用类别默认(CAP_BY_CATEGORY)，>0 强制覆盖。种子默认 6=一茬农场、家具类默认 6（摆放位有限），材料/作物默认 30，集中见 Utils.CAP_BY_CATEGORY，一处可调
 @export var is_placeable: bool = false            ## 是否世界可摆放物（区别于背包分类；true 时仓库收进「摆放」标签页）
 @export var garden_placement: bool = false        ## 可作为种植屏功能槽容器（花盆类）。与 is_placeable 正交：本标志管「能否进种植槽」，is_placeable 管「能否摆桌面装饰」
 ## 预加载 MaterialCost，使其在 `Array[MaterialCost]` 泛型参数里对当前文件可见。

@@ -22,6 +22,13 @@ const DEFAULT_PRODUCT_PATHS := ["res://data/product_chair.tres", "res://data/pro
 
 var _current_view: int = LIST_VIEW
 var _pending: ItemData
+var _qty: int = 1                 ## 确认视图当前选择的购买数量（方案A：一单装 N 件，合并配送）
+
+## 数量选择器控件（代码构建，插入 ConfirmView，避免改 .tscn）
+var _qty_minus: Button
+var _qty_plus: Button
+var _qty_max: Button
+var _qty_label: Label
 
 @onready var _list_view: Control = $Card/Content/ListView
 @onready var _product_list: VBoxContainer = $Card/Content/ListView/ProductList
@@ -49,6 +56,7 @@ func _ready() -> void:
 	_style_button(_close_button)
 	_style_button(_confirm_ok)
 	_style_button(_confirm_cancel)
+	_build_qty_selector()
 	_ensure_pool()
 	_populate()
 	_show_list()
@@ -148,24 +156,97 @@ func _add_item_row(item: ItemData, delivery_text: String) -> void:
 # 图标生成已统一到 Utils.make_icon（见 scripts/utils.gd）
 
 
-# ═══════════════════ 购买 / 确认 ═══════════════════
+# ═══════════════════ 购买 / 确认（数量选择 + 合并配送） ═══════════════════
+
+## 代码构建「− 数量 + | 最多」选择行，插到 ConfirmLabel 与确认按钮之间。
+## 方案A合并配送：一单装 N 件只走一次基础配送时长，故时间显示不随数量变化。
+func _build_qty_selector() -> void:
+	var row := HBoxContainer.new()
+	row.name = "QtyRow"
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 10)
+
+	_qty_minus = Button.new()
+	_qty_minus.text = "−"
+	_qty_minus.custom_minimum_size = Vector2(36, 0)
+	_qty_minus.pressed.connect(func(): _change_qty(-1))
+	_style_button(_qty_minus)
+
+	_qty_label = Label.new()
+	_qty_label.text = "1"
+	_qty_label.custom_minimum_size = Vector2(36, 0)
+	_qty_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_style_label(_qty_label)
+
+	_qty_plus = Button.new()
+	_qty_plus.text = "+"
+	_qty_plus.custom_minimum_size = Vector2(36, 0)
+	_qty_plus.pressed.connect(func(): _change_qty(1))
+	_style_button(_qty_plus)
+
+	_qty_max = Button.new()
+	_qty_max.text = "最多"
+	_qty_max.pressed.connect(func(): _set_qty(_max_buyable()))
+	_style_button(_qty_max)
+
+	row.add_child(_qty_minus)
+	row.add_child(_qty_label)
+	row.add_child(_qty_plus)
+	row.add_child(_qty_max)
+	_confirm_view.add_child(row)
+	_confirm_view.move_child(row, _confirm_label.get_index() + 1)
+
+
+## 当前商品允许的最大购买数：受单笔护栏上限（Utils.effective_cap）与金币可负担数双重钳制
+func _max_buyable() -> int:
+	if _pending == null:
+		return 1
+	var cap: int = maxi(1, Utils.effective_cap(_pending))
+	if _pending.price > 0:
+		cap = mini(cap, maxi(1, GameManager.gold / _pending.price))
+	return cap
+
+
+func _change_qty(delta: int) -> void:
+	_set_qty(_qty + delta)
+
+
+func _set_qty(v: int) -> void:
+	_qty = clampi(v, 1, _max_buyable())
+	_refresh_confirm()
+
+
+## 刷新确认视图：文案（数量/总价/固定基础时长）+ 按钮可用性
+func _refresh_confirm() -> void:
+	if _pending == null:
+		return
+	var dur_text := "5 分"            ## 种子等无 delivery_minutes 的物品用默认配送时长
+	if _pending is ProductData:
+		dur_text = "%d 分" % _pending.delivery_minutes
+	var total: int = _pending.price * _qty
+	_confirm_label.text = "购买 %s ×%d？\n共扣除 %d 金币，%s后一起到货" % [_pending.display_name, _qty, total, dur_text]
+	_qty_label.text = str(_qty)
+	var limit := _max_buyable()
+	_qty_minus.disabled = _qty <= 1
+	_qty_plus.disabled = _qty >= limit
+	_qty_max.disabled = _qty >= limit
+	_confirm_ok.disabled = GameManager.gold < total
+
 
 func _on_buy_pressed(item: ItemData) -> void:
 	_pending = item
-	var dur_text := "5 分"            ## 种子等无 delivery_minutes 的物品用默认配送时长
-	if item is ProductData:
-		dur_text = "%d 分" % item.delivery_minutes
-	_confirm_label.text = "购买 %s？\n将扣除 %d 金币，%s后到货" % [item.display_name, item.price, dur_text]
+	_qty = 1
+	_refresh_confirm()
 	_show_confirm()
 
 
 func _on_confirm_ok() -> void:
 	# 二次校验（防止期间金币被其他逻辑消耗）
-	if _pending == null or GameManager.gold < _pending.price:
+	if _pending == null or GameManager.gold < _pending.price * _qty:
 		_show_list()
 		return
 	# 校验下单结果：成功才关闭；失败（金币不足等）退回列表刷新可用性，不静默关闭
-	if GameManager.start_order(_pending):
+	if GameManager.start_order(_pending, _qty):
 		queue_free()  # 确认后扣除金币并关闭弹窗
 	else:
 		_show_list()

@@ -54,7 +54,12 @@ static func exceeds_drag_threshold(current: Vector2, pressed: Vector2, threshold
 ## 统一存档版本号：各 ConfigFile 存档在 [meta] 写入 save_version。
 ## 读取时比对 SAVE_VERSION：缺失或低于当前值即视为旧档，调用方据此走迁移分支。
 ## 各管理器可复用本套辅助，逐步实现「统一存档版本 + 迁移」框架。
-const SAVE_VERSION := 1
+##
+## 版本历史：
+##   v1 — 初始版本戳落地（各存档格式不变）
+##   v2 — phone_orders.json 订单/待收记录新增 qty 字段（方案A合并配送）；旧档迁移补 qty=1，
+##        其余存档 v1→v2 格式不变、无需转换
+const SAVE_VERSION := 2
 const _META_SECTION := "meta"
 const _VERSION_KEY := "save_version"
 
@@ -72,3 +77,27 @@ static func read_save_version(cfg: ConfigFile) -> int:
 ## 是否为需要迁移的旧档（缺失或低于当前 SAVE_VERSION）
 static func is_legacy_save(cfg: ConfigFile) -> bool:
 	return read_save_version(cfg) < SAVE_VERSION
+
+
+## ─── 商城单笔数量上限（护栏，数据驱动） ───
+## 商城「最多」按钮 / 下单钳制使用的单笔数量上限。
+## 设计：双层约束 = min(护栏上限, 金币可负担数)；金币为主驱动、护栏兜底防失控。
+## 护栏上限 = max_per_order（单物品 .tres 覆盖，>0 优先）；为 0 时回落到 CAP_BY_CATEGORY 类别默认。
+## 类别默认集中在此，一处可调；想给某物品特例，在对应 .tres 填 max_per_order 即可。
+const CAP_BY_CATEGORY := {
+	ItemData.Category.CLOTHING: 10,
+	ItemData.Category.SEED: 6,
+	ItemData.Category.CROP: 30,
+	ItemData.Category.MATERIAL: 30,
+	ItemData.Category.DECOR: 6,
+}
+const DEFAULT_CAP := 6   ## CAP_BY_CATEGORY 未命中时的兜底上限
+
+
+## 计算某物品的商城单笔数量上限：max_per_order>0 优先，否则取类别默认（兜底 DEFAULT_CAP）。
+static func effective_cap(item: ItemData) -> int:
+	if item == null:
+		return DEFAULT_CAP
+	if item.max_per_order > 0:
+		return item.max_per_order
+	return CAP_BY_CATEGORY.get(item.category, DEFAULT_CAP)

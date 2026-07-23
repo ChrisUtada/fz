@@ -61,7 +61,7 @@ func _refresh_ongoing() -> void:
 	var orders: Array = GameManager.get_orders()
 	var sig := ""
 	for o in orders:
-		sig += str(o["id"]) + ","
+		sig += str(o["id"]) + "x" + str(o.get("qty", 1)) + ","
 	if sig != _order_sig:
 		_rebuild_ongoing(orders)
 		_order_sig = sig
@@ -85,7 +85,8 @@ func _rebuild_ongoing(orders: Array) -> void:
 		row.add_theme_constant_override("separation", 6)
 
 		var name_l := Label.new()
-		name_l.text = o["name"]
+		var oqty: int = int(o.get("qty", 1))
+		name_l.text = o["name"] if oqty <= 1 else "%s ×%d" % [o["name"], oqty]
 		name_l.add_theme_color_override("font_color", UITheme.TEXT_PRIMARY)
 		name_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
@@ -125,11 +126,12 @@ func _refresh_arrived() -> void:
 		var p: ProductData = _find_product(a["id"])
 		var icon := Utils.make_icon(p)
 		var name_l := Label.new()
-		name_l.text = a["name"]
+		var aqty: int = int(a.get("qty", 1))
+		name_l.text = a["name"] if aqty <= 1 else "%s ×%d" % [a["name"], aqty]
 		name_l.add_theme_color_override("font_color", UITheme.TEXT_PRIMARY)
 		name_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var claim := Button.new()
-		claim.text = "领取"
+		claim.text = "领取" if aqty <= 1 else "领取 ×%d" % aqty
 		claim.add_theme_color_override("font_color", UITheme.TEXT_PRIMARY)
 		claim.pressed.connect(func(): _on_claim(a["id"]))
 		row.add_child(icon)

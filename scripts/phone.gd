@@ -127,7 +127,10 @@ func _save_position() -> void:
 ## 仅刷新「已到货」提醒；进度条/倒计时已移入订单中心弹窗。
 ## 现在由 arrived_changed 信号驱动（见 _on_arrived_changed），不再每帧轮询。
 func _refresh() -> void:
-	var count := GameManager.get_arrived().size()
+	# 件数按 qty 求和（方案A：一张订单可装 N 件，提醒显示实际件数而非订单数）
+	var count := 0
+	for a in GameManager.get_arrived():
+		count += int(a.get("qty", 1))
 	if count > 0:
 		_arrived_label.visible = true
 		_arrived_label.text = "已到货 %d 件 · 单击查看" % count

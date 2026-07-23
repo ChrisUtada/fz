@@ -235,10 +235,10 @@ func get_owned_ids() -> Array:
 	return inventory.keys()
 
 
-func _unlock_internal(id: String) -> void:
+func _unlock_internal(id: String, qty: int = 1) -> void:
 	if id.is_empty():
 		return
-	add_item(id, 1)
+	add_item(id, maxi(1, qty))
 
 
 func save_inventory() -> void:

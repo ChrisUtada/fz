@@ -235,18 +235,23 @@ func get_pending_reward() -> int:
 ## 下单：校验金币 → 扣款 → 记录进行中订单（墙钟时间戳）→ 立即存档。返回是否成功。
 ## 下单：扣金币、建订单（按配送时长墙钟计时）。接收任意 ItemData（ProductData 走商品配送时长，
 ## SeedData 等无 delivery_minutes 的用默认 5 分钟），到货后 confirm_receipt 按 id 入库。
-func start_order(product: ItemData) -> bool:
+## 方案A合并配送：qty 件装进同一张订单，只走一次基础配送时长，到货一起给 qty 件；
+## qty 被钳制在 [1, Utils.effective_cap(product)]（= max_per_order 或类别默认），总价 = price × qty 一次扣除。
+func start_order(product: ItemData, qty: int = 1) -> bool:
 	if product == null:
 		return false
-	if gold < product.price:
+	var n: int = clampi(qty, 1, Utils.effective_cap(product))
+	var total_cost: int = product.price * n
+	if gold < total_cost:
 		return false
-	subtract_gold(product.price)
+	subtract_gold(total_cost)
 	var duration_sec: float = 5.0 * 60.0          # 默认配送时长（适用于种子等无 delivery_minutes 的物品）
 	if product is ProductData:
 		duration_sec = float(product.delivery_minutes) * 60.0
 	var order := {
 		"id": product.id,
 		"name": product.display_name,
+		"qty": n,
 		"start_unix": int(Time.get_unix_time_from_system()),
 		"duration_sec": duration_sec
 	}
@@ -267,6 +272,7 @@ func get_orders() -> Array:
 		out.append({
 			"id": o["id"],
 			"name": o["name"],
+			"qty": int(o.get("qty", 1)),
 			"remaining_sec": remaining,
 			"progress": progress
 		})
@@ -288,7 +294,7 @@ func confirm_receipt() -> bool:
 	if _arrived.is_empty():
 		return false
 	for a in _arrived:
-		_unlock_internal(a["id"])
+		_unlock_internal(a["id"], int(a.get("qty", 1)))
 	_arrived.clear()
 	_save_orders()
 	arrived_changed.emit()
@@ -296,7 +302,7 @@ func confirm_receipt() -> bool:
 	return true
 
 
-## 领取单个到货：解锁进仓库、从待收移除、存档、发信号。供订单中心逐件领取。
+## 领取单个到货条目：一键领取该订单全部 qty 件进仓库、从待收移除、存档、发信号。供订单中心领取。
 func confirm_receipt_one(id: String) -> void:
 	var idx := -1
 	for i in range(_arrived.size()):
@@ -305,7 +311,7 @@ func confirm_receipt_one(id: String) -> void:
 			break
 	if idx < 0:
 		return
-	_unlock_internal(_arrived[idx]["id"])
+	_unlock_internal(_arrived[idx]["id"], int(_arrived[idx].get("qty", 1)))
 	_arrived.remove_at(idx)
 	_save_orders()
 	arrived_changed.emit()
@@ -323,7 +329,7 @@ func _tick_orders() -> void:
 		var elapsed := now - int(o["start_unix"])
 		if elapsed >= float(o["duration_sec"]):
 			_orders.remove_at(i)
-			_arrived.append({"id": o["id"], "name": o["name"]})
+			_arrived.append({"id": o["id"], "name": o["name"], "qty": int(o.get("qty", 1))})
 			arrived_something = true
 			order_arrived.emit(o["id"], o["name"])
 	if arrived_something:
@@ -412,9 +418,9 @@ func has_product(id: String) -> bool:
 func get_owned_ids() -> Array:
 	return inventory_mgr.get_owned_ids() if inventory_mgr != null else []
 
-func _unlock_internal(id: String) -> void:
+func _unlock_internal(id: String, qty: int = 1) -> void:
 	if inventory_mgr != null:
-		inventory_mgr._unlock_internal(id)
+		inventory_mgr._unlock_internal(id, qty)
 
 ## 委托给 InventoryManager（旧存档自愈：注册表就绪后从服装库存推导已解锁集合）
 func _ensure_unlocked_clothes() -> void:
@@ -672,25 +678,26 @@ func _load_orders() -> void:
 	if parsed == null or not parsed is Dictionary:
 		_delete_orders_save()
 		return
-	# 旧档迁移入口：v0（无 save_version 键）格式与 v1 一致，暂无需转换（见 Utils.SAVE_VERSION）
-	if int(parsed.get("save_version", 0)) < Utils.SAVE_VERSION:
-		pass
+	# 旧档迁移：v1 及以前订单/待收无 qty 字段 → 统一补 qty=1（方案A合并配送，v2 起携带数量）
+	var legacy: bool = int(parsed.get("save_version", 0)) < Utils.SAVE_VERSION
 	var orders_arr: Array = parsed.get("orders", [])
 	var arrived_arr: Array = parsed.get("arrived", [])
 	var now := Time.get_unix_time_from_system()
 	for o in orders_arr:
 		if not o is Dictionary:
 			continue
+		if legacy and not o.has("qty"):
+			o["qty"] = 1
 		var elapsed := now - int(o.get("start_unix", 0))
 		if elapsed >= float(o.get("duration_sec", 0)):
 			# 离线期间已到货 → 进待收（待用户确认收货入库）
-			_arrived.append({"id": o.get("id", ""), "name": o.get("name", "")})
+			_arrived.append({"id": o.get("id", ""), "name": o.get("name", ""), "qty": int(o.get("qty", 1))})
 		else:
 			# 仍在进行 → 后台继续
 			_orders.append(o)
 	for a in arrived_arr:
 		if a is Dictionary:
-			_arrived.append({"id": a.get("id", ""), "name": a.get("name", "")})
+			_arrived.append({"id": a.get("id", ""), "name": a.get("name", ""), "qty": int(a.get("qty", 1))})
 	# 规整存档：已到的从进行中移走
 	_save_orders()
 
