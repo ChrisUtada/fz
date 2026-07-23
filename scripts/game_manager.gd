@@ -73,6 +73,9 @@ var clothing_rack: Array = []          # 长度 RACK_SLOTS 的槽数组（元素
 # ─── 经济管理（委托给 EconomyManager） ───
 var economy_mgr: EconomyManager = null
 
+# ─── 活动管理（委托给 ActivityManager） ───
+var activity_mgr: ActivityManager = null
+
 var gold: int:
 	get: return economy_mgr.gold if economy_mgr != null else 0
 
@@ -81,26 +84,6 @@ var inspiration: int:
 
 var inspiration_total_earned: int:
 	get: return economy_mgr.inspiration_total_earned if economy_mgr != null else 0
-
-# ─── 灵感活动计时（墙钟 + 存档，支持离线收益） ───
-const ACTIVITY_SAVE_PATH := "user://inspiration_active.json"
-const STREAK_SAVE_PATH := "user://focus_streak.cfg"   ## 连击持久化（跨会话保留，放弃清零）
-
-var _activity_running: bool = false
-var _activity_name: String = ""
-var _activity_per_minute: float = 0.0
-var _activity_start_unix: int = 0
-var _activity_duration_sec: float = 0.0
-var _activity_interrupts: int = 0   ## 本次番茄钟的打断次数（进程内，不持久化；离线补发不记打断）
-var _activity_streak: int = 0   ## 连续完成番茄钟次数（连击；持久化，放弃清零）
-
-# ─── 外出活动：GlobalInput GDExtension 进程内键鼠统计（仅 OUTING 模式使用） ───
-var _global_input: GlobalInput = null   ## 全局键鼠钩子扩展节点（进程内常驻，无需外部进程）
-var _activity_mode: int = 0             ## 0=POMODORO, 1=OUTING（与 ActivityData.Mode 对应）
-var _outing_per_action: float = 0.05
-var _outing_active: bool = false        ## OUTING 进行中且钩子已启动
-var _outing_total: int = 0              ## 统一计数：OUTING 期间累计键鼠输入次数（单一数据源，避免重复计数）
-var _prev_keys: Dictionary = {}         ## 上一帧按下的键（字符串集合），用于差分
 
 # ─── 电话订单（墙钟 + 存档，支持离线到货） ───
 const ORDER_SAVE_PATH := "user://phone_orders.json"
@@ -123,38 +106,36 @@ func is_modal_open() -> bool:
 
 
 func _ready() -> void:
-	# 经济管理子管理器：实例化、挂子节点、连接货币信号（GameManager 侧 re-emit 广播）
+	# 经济管理子管理器
 	economy_mgr = EconomyManager.new()
 	add_child(economy_mgr)
 	economy_mgr.owner_mgr = self
 	economy_mgr.currency_changed.connect(_on_currency_changed)
-	economy_mgr.load_all()  # 设定 gold/inspiration=initial 并还原灵感累计（单调计数器）
-	# 库存子管理器：实例化、挂为子节点、连接库存变化信号（GameManager 侧 re-emit 广播）
+	economy_mgr.load_all()
+	# 库存子管理器
 	inventory_mgr = InventoryManager.new()
 	add_child(inventory_mgr)
 	inventory_mgr.owner_mgr = self
 	inventory_mgr.inventory_changed.connect(_on_inventory_changed)
-	inventory_mgr.load_all()  # 库存：还原统一 inventory（含旧仓库迁移）与已解锁服装集合
-	_load_activity()    # 灵感：已过期补发 / 未过期后台继续
-	_load_orders()      # 订单：离线期间到货的进待收，未到的后台继续
-	_load_equipped()    # 穿搭：还原 equipped（含旧 wardrobe.cfg 一次性迁移）
-	_load_streak()             # 连击：还原跨会话连击数
-	_load_blueprints()          # 蓝图：加载定义 + 恢复解锁 + 初始解锁 pass
-	_load_farm()                # 农场：还原槽状态（墙钟，离线照常续算）
-	_load_rack()                # 服装展架：还原上架状态（阶段 4）
-	_init_global_input()       # 外出统计：常驻 GlobalInput 扩展节点（钩子仅 OUTING 时启用）
-	tree_exiting.connect(_on_tree_exiting)  # 进程退出前清理（停止外出统计钩子）
-
+	inventory_mgr.load_all()
+	# 活动子管理器：load_all 内含连击还原 + 灵感活动离线补发（同时创建 GlobalInput 节点）
+	activity_mgr = ActivityManager.new()
+	add_child(activity_mgr)
+	activity_mgr.owner_mgr = self
+	activity_mgr.activity_started.connect(func(): activity_started.emit())
+	activity_mgr.activity_finished.connect(func(r): activity_finished.emit(r))
+	activity_mgr.activity_cancelled.connect(func(): activity_cancelled.emit())
+	activity_mgr.activity_interrupted.connect(func(n): activity_interrupted.emit(n))
+	activity_mgr.activity_streak_changed.connect(func(s): activity_streak_changed.emit(s))
+	activity_mgr.load_all()
+	_load_orders()
+	_load_equipped()
+	_load_blueprints()
+	_load_farm()
+	_load_rack()
 
 func _process(_delta: float) -> void:
-	if _activity_running and _activity_mode == ActivityData.Mode.POMODORO:
-		var elapsed := Time.get_unix_time_from_system() - _activity_start_unix
-		if elapsed >= _activity_duration_sec:
-			_finish_activity()
-	if _outing_active and _global_input != null:
-		_tick_outing_inputs()
-	_tick_orders()
-
+	_tick_orders()   # 订单轮询；活动计时/外出统计由 ActivityManager._process 接管
 
 # ═══════════════════ 货币 ═══════════════════
 
@@ -178,287 +159,54 @@ func complete_order(base_reward: Dictionary) -> void:
 	if economy_mgr != null:
 		economy_mgr.complete_order(base_reward)
 
-
-# ═══════════════════ 灵感活动计时 ═══════════════════
-
-## 开始一个活动。minutes 为设定时长（分钟），仅 POMODORO 模式使用。
-## OUTING 模式不启墙钟，改为启动伴生进程统计真实键鼠输入。
-## 开始一个活动（番茄钟/外出）。成功返回 true；数据为空或已有活动进行中则拒绝并返回 false。
+# ═══════════════════ 灵感活动（委托给 ActivityManager） ═══════════════════
 func start_activity(data: ActivityData, minutes: int) -> bool:
-	if data == null:
-		return false
-	if _activity_running:
-		return false   ## 已有活动进行中，拒绝重复开始（避免 UI 与状态不一致）
-	_activity_running = true
-	_activity_interrupts = 0   ## 新会话开始，打断计数归零
-	_activity_name = data.activity_name
-	_activity_mode = data.mode
-	if data.mode == ActivityData.Mode.OUTING:
-		_start_outing(data)
-		activity_started.emit()
-		return true
-	# 番茄钟：墙钟计时 + 立即存档
-	if minutes < 1:
-		minutes = 1
-	_activity_per_minute = data.inspiration_per_minute
-	_activity_start_unix = int(Time.get_unix_time_from_system())
-	_activity_duration_sec = float(minutes) * 60.0
-	_save_activity()
-	activity_started.emit()
-	return true
+	if activity_mgr != null:
+		return activity_mgr.start_activity(data, minutes)
+	return false
 
-
-## 放弃当前进行中的活动（清状态，不发奖）。OUTING 会先杀掉伴生进程。
 func cancel_activity() -> void:
-	if not _activity_running:
-		return
-	var was_outing := (_activity_mode == ActivityData.Mode.OUTING)
-	if was_outing:
-		_stop_outing_hook()
-	_activity_running = false
-	_activity_interrupts = 0
-	# 放弃番茄钟 → 连击中断清零（外出放弃不影响番茄钟连击）
-	if not was_outing and _activity_streak > 0:
-		_activity_streak = 0
-		_save_streak()
-		activity_streak_changed.emit(0)
-	_activity_mode = 0
-	if not was_outing:
-		_delete_activity_save()
-	activity_cancelled.emit()
-
+	if activity_mgr != null:
+		activity_mgr.cancel_activity()
 
 func is_activity_running() -> bool:
-	return _activity_running
+	return activity_mgr.is_activity_running() if activity_mgr != null else false
 
-
-## 记录一次打断（仅 POMODORO 进行中做了非灵感活动的分心行为）。OUTING 不记打断。
 func register_interrupt() -> void:
-	if not _activity_running:
-		return
-	if _activity_mode != ActivityData.Mode.POMODORO:
-		return
-	_activity_interrupts += 1
-	activity_interrupted.emit(_activity_interrupts)
-
+	if activity_mgr != null:
+		activity_mgr.register_interrupt()
 
 func get_activity_interrupts() -> int:
-	return _activity_interrupts
-
+	return activity_mgr.get_activity_interrupts() if activity_mgr != null else 0
 
 func get_active_activity_name() -> String:
-	return _activity_name
-
+	return activity_mgr.get_active_activity_name() if activity_mgr != null else ""
 
 func get_activity_mode() -> int:
-	return _activity_mode
+	return activity_mgr.get_activity_mode() if activity_mgr != null else 0
 
-
-## 当前连击数（连续完成的番茄钟次数；放弃清零，跨会话保留）
 func get_activity_streak() -> int:
-	return _activity_streak
+	return activity_mgr.get_activity_streak() if activity_mgr != null else 0
 
-
-# ─── 外出活动：伴生进程键鼠统计 ───
-
-## 创建并常驻 GlobalInput 节点。钩子本身默认不启用，仅 OUTING 模式 start 时启用。
-## 注意：该扩展在编辑器/无头模式下因 editor_hint 守卫不会真正捕获全局输入，
-## 仅在「导出后的游戏」运行时生效。开发期验证需导出运行。
-func _init_global_input() -> void:
-	if not ClassDB.class_exists("GlobalInput"):
-		push_warning("GlobalInput 扩展未加载（缺少 addons/godot_global_input/global_input.gdextension 或对应 .dll）")
-		return
-	_global_input = GlobalInput.new()
-	_global_input.name = "GlobalInput"
-	_global_input.process_priority = -10   # 确保其 _process 先于 GameManager，状态及时刷新
-	add_child(_global_input)
-	# 默认 dummy 后端（不捕获）；OUTING 开始时切 windows 才真正开始统计
-
-
-## 开始 OUTING：启用真实全局钩子，立即生效（无外部进程冷启动/轮询延迟）。
-func _start_outing(data: ActivityData) -> void:
-	_outing_active = false
-	_outing_total = 0
-	_prev_keys = {}
-	_outing_per_action = data.inspiration_per_action
-	if _global_input == null:
-		push_warning("外出活动：GlobalInput 扩展不可用，本次不计统计")
-		return
-	_global_input.set_backend("windows")   # dummy -> windows：启动真实全局键鼠钩子
-	_outing_active = true
-
-
-## 每帧差分累计键鼠输入次数（统一计数）。
-## 基于“当前按下”状态做差分（而非 just_pressed 帧窗口），避免受 _process 顺序影响而漏计。
-func _tick_outing_inputs() -> void:
-	# 单一数据源：get_keys_pressed_detailed() 的返回已同时含键盘键与鼠标键
-	# （鼠标键经 key_map 映射进入 key_state，见 windows_global_input.h）。
-	# 对其逐帧差分，新增即 +1；切勿再叠加 is_mouse_pressed 的独立轮询，
-	# 否则鼠标键会被计两次（每次点击显示 +2）。
-	var cur: Dictionary = _global_input.get_keys_pressed_detailed()
-	for k in cur.keys():
-		if k == "os":
-			continue   # 附带字段，忽略
-		if not _prev_keys.has(k):
-			_outing_total += 1
-	_prev_keys = cur
-
-
-## 公开给 UI：当前是否未就绪（钩子启动即就绪，仅扩展缺失时返回原因）。
 func get_outing_error() -> String:
-	if _global_input == null:
-		return "GlobalInput 扩展未加载"
-	return ""
+	return activity_mgr.get_outing_error() if activity_mgr != null else ""
 
-
-## 公开给 UI：OUTING 实时统计。统一计数以 total 为准。
 func get_outing_counts() -> Dictionary:
-	if not _outing_active:
-		return {"total": 0, "active": false}
-	return {"total": _outing_total, "active": true}
+	return activity_mgr.get_outing_counts() if activity_mgr != null else {"total": 0, "active": false}
 
-
-## 结束外出并折算灵感（手动「结束并领取」触发）
 func finish_outing() -> void:
-	if not _activity_running or _activity_mode != ActivityData.Mode.OUTING:
-		return
-	var inputs := _outing_total
-	var reward := int(ceil(float(inputs) * _outing_per_action - 0.0001))
-	_activity_running = false
-	_stop_outing_hook()
-	add_inspiration(reward)
-	activity_finished.emit({"inspiration": reward, "activity_name": _activity_name, "inputs": inputs, "mode": "outing"})
-	_activity_interrupts = 0
-	_activity_mode = 0
-
-
-## OUTING 结束后停止真实钩子（切回 dummy 后端，零开销）。
-func _stop_outing_hook() -> void:
-	_outing_active = false
-	if _global_input != null:
-		_global_input.set_backend("dummy")
-
-
-func _on_tree_exiting() -> void:
-	if _global_input != null:
-		_global_input.stop_hook()
-
+	if activity_mgr != null:
+		activity_mgr.finish_outing()
 
 func get_remaining_sec() -> float:
-	if not _activity_running:
-		return 0.0
-	var elapsed := Time.get_unix_time_from_system() - _activity_start_unix
-	return maxf(0.0, _activity_duration_sec - elapsed)
-
+	return activity_mgr.get_remaining_sec() if activity_mgr != null else 0.0
 
 func get_activity_total_sec() -> float:
-	if not _activity_running:
-		return 0.0
-	return _activity_duration_sec
-
+	return activity_mgr.get_activity_total_sec() if activity_mgr != null else 0.0
 
 func get_pending_reward() -> int:
-	if not _activity_running:
-		return 0
-	var minutes := int(ceil(_activity_duration_sec / 60.0))
-	return _compute_activity_reward(_activity_per_minute, minutes)
+	return activity_mgr.get_pending_reward() if activity_mgr != null else 0
 
-
-func _finish_activity() -> void:
-	var minutes := int(ceil(_activity_duration_sec / 60.0))
-	var base := _compute_activity_reward(_activity_per_minute, minutes)
-	## 打断衰减：每次打断 -20%，保底 50%（即最少拿一半灵感）
-	var factor := maxf(0.5, 1.0 - float(_activity_interrupts) * 0.2)
-	## 连击奖励：连续完成番茄钟的额外加成（仅 POMODORO；OUTING 走 finish_outing 不影响）
-	var streak_factor := 1.0
-	if _activity_mode == ActivityData.Mode.POMODORO:
-		_activity_streak += 1
-		streak_factor = _streak_factor(_activity_streak)
-		activity_streak_changed.emit(_activity_streak)
-	var decayed := int(ceil(float(base) * factor - 0.0001))
-	var reward := int(ceil(float(base) * factor * streak_factor - 0.0001))
-	var streak_bonus := maxi(0, reward - decayed)
-	_activity_running = false
-	_delete_activity_save()
-	add_inspiration(reward)
-	activity_finished.emit({"inspiration": reward, "activity_name": _activity_name, "base": base, "interrupts": _activity_interrupts, "minutes": minutes, "streak": _activity_streak, "streak_bonus": streak_bonus})
-	_activity_interrupts = 0
-
-
-func _compute_activity_reward(per_minute: float, minutes: int) -> int:
-	if minutes < 1:
-		minutes = 1
-	var raw := float(minutes) * per_minute
-	return int(ceil(raw - 0.0001))
-
-
-## 连击加成系数：连续完成的番茄钟越多，额外灵感越高（封顶 +50%）。
-## 仅作用于 POMODORO 结算；与打断衰减相乘叠加。
-func _streak_factor(streak: int) -> float:
-	if streak >= 10:
-		return 1.5
-	if streak >= 5:
-		return 1.25
-	if streak >= 2:
-		return 1.10
-	return 1.0
-
-
-func _save_activity() -> void:
-	var payload := {
-		"name": _activity_name,
-		"per_minute": _activity_per_minute,
-		"start_unix": _activity_start_unix,
-		"duration_sec": _activity_duration_sec
-	}
-	var f := FileAccess.open(ACTIVITY_SAVE_PATH, FileAccess.WRITE)
-	if f != null:
-		f.store_string(JSON.stringify(payload))
-		f.close()
-
-
-func _load_activity() -> void:
-	if not FileAccess.file_exists(ACTIVITY_SAVE_PATH):
-		return
-	var f := FileAccess.open(ACTIVITY_SAVE_PATH, FileAccess.READ)
-	if f == null:
-		return
-	var txt := f.get_as_text()
-	f.close()
-	var parsed = JSON.parse_string(txt)
-	if parsed == null or not parsed is Dictionary:
-		_delete_activity_save()
-		return
-	_activity_name = parsed.get("name", "")
-	_activity_per_minute = float(parsed.get("per_minute", 0.0))
-	_activity_start_unix = int(parsed.get("start_unix", 0))
-	_activity_duration_sec = float(parsed.get("duration_sec", 0.0))
-	var elapsed := Time.get_unix_time_from_system() - _activity_start_unix
-	if elapsed >= _activity_duration_sec:
-		_finish_activity()
-	else:
-		_activity_running = true
-		_activity_mode = ActivityData.Mode.POMODORO   ## 存档活动均为番茄钟
-
-
-func _delete_activity_save() -> void:
-	var dir := DirAccess.open("user://")
-	if dir != null:
-		dir.remove("inspiration_active.json")
-
-
-# ─── 连击存档（跨会话保留；放弃清零） ───
-
-func _save_streak() -> void:
-	var cfg := ConfigFile.new()
-	cfg.set_value("streak", "count", _activity_streak)
-	cfg.save(STREAK_SAVE_PATH)
-
-
-func _load_streak() -> void:
-	var cfg := ConfigFile.new()
-	if cfg.load(STREAK_SAVE_PATH) == OK:
-		_activity_streak = int(cfg.get_value("streak", "count", 0))
 
 
 # ═══════════════════ 电话订单（多订单并行 + 墙钟 + 存档） ═══════════════════
