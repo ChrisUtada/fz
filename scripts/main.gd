@@ -192,53 +192,43 @@ func _input(event: InputEvent) -> void:
 			# 活动面板左右箭头按钮：交给按钮 GUI 处理切屏，不拖窗口（箭头仅在四对等屏可见）
 			if _arrow_nav != null and _arrow_nav.contains_button_point(mp):
 				return
-			# 仓库全局浮层已打开时：点击交由浮层自身处理，不拖窗口
-			if _has_warehouse():
-				return
-			# 分页屏（工坊/种植/换装）视为常驻主视图：屏下方被遮挡的
-			# 宠物/顾客/摆放物/电话/展架不应抢点击，故跳过其命中检测；
-			# 屏内空白区仍允许拖拽窗口（与家园态一致）。
-			if not _has_active_screen():
-				# 点中宠物：宠物自身 _input 已消费（拖动/轻点红心），此处不拖窗口
+			# 桌面摆件（宠物/顾客/摆放物/电话/展架）仅在无全屏弹窗的家园态抢占点击；
+			# 任一弹窗或分页屏打开时它们被遮挡，交弹窗/分页屏自身处理。
+			if not _has_any_overlay():
 				if _pet_at_point(mp) != null:
 					return
-				# 点中顾客：顾客自身 _input 已消费并自行处理（拖动/轻点完成），此处不拖窗口
 				if _customer_at_point(mp) != null:
 					return
-				# 点中已摆放物品：摆放物自身 _input 已消费（拖动），此处不拖窗口
 				if _placed_at_point(mp) != null:
 					return
-				# 点中电话摆件：交给电话自身处理点击，不拖窗口
 				if _phone_at_point(mp):
 					return
-				# 点中服装展架摆件：交给展架自身处理点击/拖动，不拖窗口
 				if _rack_at_point(mp):
 					return
-			# 产品目录已打开时，不响应空白拖拽（覆盖层处理自身交互）
-			if _has_catalog():
+			# —— 统一判定拖动手柄 ——
+			# 目标：任何弹窗打开都不影响窗口可移动性。
+			# 拖动手柄 = 窗口顶部拖拽带（始终可用）× 或 已开弹窗标题栏（不含关闭按钮）。
+			var win_local_y := DisplayServer.mouse_get_position().y - DisplayServer.window_get_position().y
+			var can_drag := win_local_y <= TOP_DRAG_BAND
+			if not can_drag and _has_inspiration():
+				var ipos := get_global_mouse_position()
+				var panel := get_node_or_null("InspirationPanel")
+				var title_bar: Control = panel.get_node_or_null("Card/Content/TitleBar") if panel != null else null
+				var close_btn: Control = panel.get_node_or_null("Card/Content/TitleBar/CloseButton") if panel != null else null
+				var on_close := close_btn != null and close_btn.get_global_rect().has_point(ipos)
+				var on_title := title_bar != null and title_bar.get_global_rect().has_point(ipos) and not on_close
+				can_drag = on_title
+			if can_drag:
+				_dragging = true
+				_drag_offset = DisplayServer.window_get_position() - DisplayServer.mouse_get_position()
+				get_viewport().set_input_as_handled()
 				return
-			# 订单中心已打开时，不响应空白拖拽
-			if _has_phone_panel():
-				return
-			# 灵感面板已打开时，不响应空白拖拽
-			if _has_inspiration():
-				return
-			# 窗口拖动限定在顶部拖拽带：避免与换装/列表等内部拖拽冲突。
-			# 注意：mp 为视口坐标(=窗口内局部 y，0..420)，而 window_get_position() 是屏幕坐标；
-			# 二者不能相减。统一用 DisplayServer 的屏幕坐标差，得到窗口内局部 y 才正确。
-			# 修复前 mp.y - _win_pos.y 得负数导致拖拽带判断失效、任意位置都能拖窗的 bug。
-			var local_y := DisplayServer.mouse_get_position().y - DisplayServer.window_get_position().y
-			if local_y > TOP_DRAG_BAND:
-				return
-			# 空白 → 开始拖拽窗口
-			_dragging = true
-			_drag_offset = DisplayServer.window_get_position() - DisplayServer.mouse_get_position()
+			# 非拖动手柄：交给弹窗/主视图自身处理
+			return
 		else:
 			_dragging = false
 	elif event is InputEventMouseMotion and _dragging:
 		DisplayServer.window_set_position(DisplayServer.mouse_get_position() + _drag_offset)
-
-
 ## 点击位置是否落在关闭按钮的全局矩形内
 func _on_close_button(pos: Vector2) -> bool:
 	return close_button.get_global_rect().has_point(pos)
@@ -269,6 +259,13 @@ func _has_phone_panel() -> bool:
 func _has_active_screen() -> bool:
 	return screen_manager != null and screen_manager.current_screen != "" \
 		and screen_manager.current_screen != "home"
+
+## 是否有任意全屏弹窗/覆盖屏打开（仓库/目录/订单/灵感/分页屏）。
+## 打开时桌面摆件被遮挡，不再抢占点击；同时窗口顶部拖拽带仍可用，
+## 保证“弹窗不影响游戏主体可移动性”。
+func _has_any_overlay() -> bool:
+	return _has_warehouse() or _has_catalog() or _has_phone_panel() \
+		or _has_inspiration() or _has_active_screen()
 
 
 ## 遍历 PlayArea 子节点，调用各自的 contains_point 进行命中判定
@@ -352,8 +349,8 @@ func _spawn_pet() -> void:
 	# 检查是否达到数量上限（包含正在淡出的）
 	if pet_area.get_child_count() >= max_pets:
 		# 已达上限，跳过本次生成，继续监听
-		var interval := randf_range(min_pet_interval, max_pet_interval)
-		await get_tree().create_timer(interval).timeout
+		var retry_interval := randf_range(min_pet_interval, max_pet_interval)
+		await get_tree().create_timer(retry_interval).timeout
 		_spawn_pet()
 		return
 

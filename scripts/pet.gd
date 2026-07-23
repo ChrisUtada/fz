@@ -47,10 +47,12 @@ func _ready() -> void:
 	scale = Vector2.ONE
 	modulate.a = 0.0
 	_play_spawn_animation()
-	_pick_direction()
-	# 若 apply_data 在 _ready 之前被调用（节点尚未进入场景树），延迟到这里落地外观与参数
+	# 先落地外观与行走参数（含 edge_margin），再选方向/定位。
+	# 否则 _pick_direction 用默认 edge_margin=50 定位，若 PetData.edge_margin<50，
+	# 下一帧 _check_bounds 可能立即判出界 → 出生即瞬灭。
 	if _data_pending:
 		_apply_visuals()
+	_pick_direction()
 
 
 func _process(delta: float) -> void:

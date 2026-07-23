@@ -194,7 +194,12 @@ func complete_order(base_reward: Dictionary) -> void:
 
 ## 开始一个活动。minutes 为设定时长（分钟），仅 POMODORO 模式使用。
 ## OUTING 模式不启墙钟，改为启动伴生进程统计真实键鼠输入。
-func start_activity(data: ActivityData, minutes: int) -> void:
+## 开始一个活动（番茄钟/外出）。成功返回 true；数据为空或已有活动进行中则拒绝并返回 false。
+func start_activity(data: ActivityData, minutes: int) -> bool:
+	if data == null:
+		return false
+	if _activity_running:
+		return false   ## 已有活动进行中，拒绝重复开始（避免 UI 与状态不一致）
 	_activity_running = true
 	_activity_interrupts = 0   ## 新会话开始，打断计数归零
 	_activity_name = data.activity_name
@@ -202,7 +207,7 @@ func start_activity(data: ActivityData, minutes: int) -> void:
 	if data.mode == ActivityData.Mode.OUTING:
 		_start_outing(data)
 		activity_started.emit()
-		return
+		return true
 	# 番茄钟：墙钟计时 + 立即存档
 	if minutes < 1:
 		minutes = 1
@@ -211,6 +216,7 @@ func start_activity(data: ActivityData, minutes: int) -> void:
 	_activity_duration_sec = float(minutes) * 60.0
 	_save_activity()
 	activity_started.emit()
+	return true
 
 
 ## 放弃当前进行中的活动（清状态，不发奖）。OUTING 会先杀掉伴生进程。
@@ -519,16 +525,17 @@ func has_arrived() -> bool:
 	return not _arrived.is_empty()
 
 
-## 确认收货：把全部待收货物解锁进仓库、清空待收、存档。
-func confirm_receipt() -> void:
+## 确认收货：把全部待收货物解锁进仓库、清空待收、存档。返回是否有货物被领取。
+func confirm_receipt() -> bool:
 	if _arrived.is_empty():
-		return
+		return false
 	for a in _arrived:
 		_unlock_internal(a["id"])
 	_arrived.clear()
 	_save_orders()
 	arrived_changed.emit()
 	warehouse_changed.emit()
+	return true
 
 
 ## 领取单个到货：解锁进仓库、从待收移除、存档、发信号。供订单中心逐件领取。

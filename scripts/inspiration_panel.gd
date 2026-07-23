@@ -126,8 +126,9 @@ func _open_activity(data: ActivityData) -> void:
 		_activity_title.text = "阅读"
 	# 外出：点击即出发，无需设定时间（无时间条）
 	if _current_activity != null and _current_activity.mode == ActivityData.Mode.OUTING:
-		GameManager.start_activity(_current_activity, 0)
-		_show_running()
+		# 校验开始结果：GM 拒绝（已有活动进行中）则不进入进行中视图，避免状态不一致
+		if GameManager.start_activity(_current_activity, 0):
+			_show_running()
 		return
 	_slider.value = _minutes
 	_spinbox.value = _minutes
@@ -213,8 +214,9 @@ func _on_start_pressed() -> void:
 	if _minutes < 1:
 		_minutes = 1
 	# 委托 GameManager：墙钟计时 + 存档（支持离线收益），本弹窗只显示
-	GameManager.start_activity(_current_activity, _minutes)
-	_show_running()
+	# 校验开始结果：GM 拒绝（已有活动进行中）则不进入进行中视图，避免状态不一致
+	if GameManager.start_activity(_current_activity, _minutes):
+		_show_running()
 
 
 func _on_cancel_pressed() -> void:

@@ -30,7 +30,9 @@ func _on_currency_changed(new_gold: int, new_inspiration: int) -> void:
 
 
 func _animate_to(target_gold: float, target_insp: float) -> void:
-	# 终止旧动画，避免快速连续变化时冲突
+	# 终止旧动画，避免快速连续变化时多条 tween 并行写 _display_* 抖动
+	if is_instance_valid(_tween):
+		_tween.kill()
 	_tween = create_tween()
 	_tween.set_parallel(true)
 

@@ -171,8 +171,11 @@ func _on_confirm_ok() -> void:
 	if _pending == null or GameManager.gold < _pending.price:
 		_show_list()
 		return
-	GameManager.start_order(_pending)
-	queue_free()  # 确认后扣除金币并关闭弹窗
+	# 校验下单结果：成功才关闭；失败（金币不足等）退回列表刷新可用性，不静默关闭
+	if GameManager.start_order(_pending):
+		queue_free()  # 确认后扣除金币并关闭弹窗
+	else:
+		_show_list()
 
 
 # ═══════════════════ 视图切换 ═══════════════════

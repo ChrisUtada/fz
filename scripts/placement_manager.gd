@@ -71,7 +71,9 @@ func save_placements() -> void:
 		return
 	var cfg := ConfigFile.new()
 	for c in _container.get_children():
-		if c is Placeable and c.data != null:
+		# 跳过已排队删除的节点：queue_free() 延迟到帧末执行，此刻仍在 get_children() 里，
+		# 若不排除会被重新写入存档，导致下次 restore() 复活（摆放物删不掉，越删越多）。
+		if c is Placeable and c.data != null and not c.is_queued_for_deletion():
 			var rec := {
 				"id": c.data.id,
 				"scene_path": c.data.placeable_scene.resource_path,
@@ -88,6 +90,8 @@ func restore() -> void:
 		return
 	var cfg := ConfigFile.new()
 	if cfg.load(SAVE_PATH) != OK:
+		return
+	if not cfg.has_section("placed"):
 		return
 	for key in cfg.get_section_keys("placed"):
 		var rec: Dictionary = cfg.get_value("placed", key)

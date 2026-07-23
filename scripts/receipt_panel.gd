@@ -82,8 +82,11 @@ func _make_icon(p: ProductData) -> Control:
 
 
 func _on_confirm() -> void:
-	GameManager.confirm_receipt()
-	queue_free()
+	# 校验领取结果：成功领取才关闭；无待收货物（异常/重复点击）也关闭本已过期的面板
+	if GameManager.confirm_receipt():
+		queue_free()
+	else:
+		_on_close()
 
 
 func _on_close() -> void:
