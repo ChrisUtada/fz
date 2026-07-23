@@ -28,6 +28,19 @@ var _press_mouse := Vector2.ZERO      ## 按下时鼠标全局坐标，用于判
 func _ready() -> void:
 	_arrived_label.visible = false
 	_load_position()
+	GameManager.arrived_changed.connect(_on_arrived_changed)
+	_refresh()   # 初始（含跨会话已到货）显示
+
+
+func _exit_tree() -> void:
+	# 断开信号，避免节点重建时重复连接
+	if GameManager.arrived_changed.is_connected(_on_arrived_changed):
+		GameManager.arrived_changed.disconnect(_on_arrived_changed)
+
+
+## 待收列表变化（到货 / 领取）时刷新提醒，替代每帧轮询。
+func _on_arrived_changed() -> void:
+	_refresh()
 
 
 ## 用 _input + contains_point 自判命中（与顾客/宠物一致）：
@@ -110,11 +123,8 @@ func _save_position() -> void:
 	cfg.save(SAVE_PATH)
 
 
-func _process(_delta: float) -> void:
-	_refresh()
-
-
 ## 仅刷新「已到货」提醒；进度条/倒计时已移入订单中心弹窗。
+## 现在由 arrived_changed 信号驱动（见 _on_arrived_changed），不再每帧轮询。
 func _refresh() -> void:
 	var count := GameManager.get_arrived().size()
 	if count > 0:
