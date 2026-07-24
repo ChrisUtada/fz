@@ -1,8 +1,8 @@
 extends TextureButton
 ## ItemSlot · 背包格子（单个衣物项）
 ##
-## 显示衣服的 b 图预览图标，支持拖出（Godot 内置 Control 拖放系统）。
-## 拖出数据包含 ClothesData 引用，由 EquipTarget 接收并装备。
+## 显示衣服的 b 图预览图标。点击格子即装备/脱下（由 Wardrobe 连接 pressed 信号处理），
+## 已穿戴项显示「穿戴中」角标。
 
 var _data: ClothesData
 
@@ -42,22 +42,3 @@ func _add_worn_badge() -> void:
 	worn.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	worn.position = Vector2(-2, 2)
 	add_child(worn)
-
-
-## Godot 拖放系统：拖拽开始时返回数据（由父节点 Control 拖放管线调用）
-func _get_drag_data(at_position: Vector2) -> Variant:
-	if _data == null:
-		return null
-
-	# 创建拖拽预览（半透明放大版图标）
-	var preview := TextureRect.new()
-	preview.texture = _data.icon
-	preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	preview.custom_minimum_size = Vector2(64, 64)
-	preview.modulate.a = 0.7
-	set_drag_preview(preview)
-
-	return {
-		"type": "clothes",
-		"data": _data
-	}

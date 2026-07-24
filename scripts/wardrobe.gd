@@ -16,8 +16,8 @@ extends Control
 ##   CloseButton
 ##
 ## 交互：
-##   拖入背包格子 → 装备（同部位自动替换）
-##   轻点已装备部位 → 脱下（按绘制层级从上往下命中检测）
+##   单击背包格子 → 装备（同部位自动替换）；已穿戴的格子再单击 → 脱下
+##   轻点角色身上已装备部位 → 脱下（按绘制层级从上往下命中检测）
 ##
 ## 阶段 0.4：服装并入统一 inventory。
 ##   - 背包只展示「已拥有」服装（GameManager.get_by_category(CLOTHING)）
@@ -44,7 +44,6 @@ var _content_rect_cache: Dictionary = {}
 
 func _ready() -> void:
 	_close_button.pressed.connect(_on_close)
-	_char_area.clothes_dropped.connect(_on_clothes_dropped)
 	_char_area.clothes_unequip_requested.connect(_on_unequip_requested)
 	GameManager.equipped_changed.connect(_refresh_worn_badges)
 	_setup_layers()
@@ -75,6 +74,7 @@ func _populate_backpack() -> void:
 	for item_data in _owned_clothes():
 		var slot: TextureButton = ITEM_SLOT_SCENE.instantiate()
 		slot.setup(item_data)
+		slot.pressed.connect(_on_slot_clicked.bind(item_data))
 		_grid_container.add_child(slot)
 
 
@@ -99,8 +99,14 @@ func _owned_clothes() -> Array:
 
 # ═══════════════════ 装备逻辑 ═══════════════════
 
-func _on_clothes_dropped(data: ClothesData) -> void:
-	if data != null:
+## 背包格子单击：点击式换装（替代原拖拽）。
+## 已穿戴则脱下，否则装备（同部位自动替换）。
+func _on_slot_clicked(data: ClothesData) -> void:
+	if data == null:
+		return
+	if GameManager.is_worn(data.id):
+		_unequip(data.slot)
+	else:
 		_equip(data)
 
 
